@@ -1,65 +1,65 @@
-import { useTheme } from "@/context/ThemeContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-const DICES = [4, 6, 8, 10, 12, 20, 100];
+// Contexto e Componentes
+import { DiceRoller } from "@/components/rpg/DiceRoller";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function GMDashboard() {
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const [history, setHistory] = useState<string[]>([]);
+
+  const [history, setHistory] = useState<{ dice: string; val: number }[]>([]);
   const [lastRoll, setLastRoll] = useState<number | null>(null);
 
-  const rollDice = (sides: number) => {
-    const result = Math.floor(Math.random() * sides) + 1;
+  const handleRollResult = (sides: number, result: number) => {
     setLastRoll(result);
-    setHistory((prev) => [`d${sides}: ${result}`, ...prev].slice(0, 5)); // Guarda os últimos 5
+    // Adiciona ao topo e limita a 10 itens
+    setHistory((prev) =>
+      [{ dice: `d${sides}`, val: result }, ...prev].slice(0, 10),
+    );
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Último Resultado (Destaque) */}
+      {/* --- RESULTADO DESTAQUE --- */}
       <View style={styles.resultContainer}>
-        <Text style={styles.resultLabel}>Resultado</Text>
+        <Text style={styles.resultLabel}>Último Resultado</Text>
         <Text style={styles.resultValue}>
           {lastRoll !== null ? lastRoll : "-"}
         </Text>
       </View>
 
-      {/* Botões de Dados */}
-      <Text style={styles.sectionTitle}>Rolagem Rápida</Text>
-      <View style={styles.diceGrid}>
-        {DICES.map((d) => (
-          <TouchableOpacity
-            key={d}
-            style={styles.diceBtn}
-            onPress={() => rollDice(d)}
-          >
-            <MaterialCommunityIcons
-              name={d === 100 ? "circle-outline" : (`dice-d${d}` as any)}
-              size={32}
-              color="#fff"
-            />
-            <Text style={styles.diceText}>D{d}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <Text style={styles.sectionTitle}>Mesa de Dados</Text>
 
-      {/* Histórico */}
-      <View style={styles.historyBox}>
-        <Text style={styles.sectionTitle}>Histórico</Text>
-        {history.map((h, i) => (
-          <Text key={i} style={styles.historyText}>
-            {h}
-          </Text>
-        ))}
+      {/* Componente Reutilizável (Cor Vermelha para o Mestre) */}
+      <DiceRoller onRoll={handleRollResult} color="#c62828" />
+
+      {/* --- HISTÓRICO --- */}
+      <View style={styles.historySection}>
+        <View style={styles.historyHeader}>
+          <MaterialCommunityIcons
+            name="history"
+            size={20}
+            color={colors.textSecondary}
+          />
+          <Text style={styles.sectionTitle}>Histórico de Rolagens</Text>
+        </View>
+
+        <View style={styles.historyList}>
+          {history.length === 0 ? (
+            <Text style={styles.emptyText}>Nenhum dado rolado ainda.</Text>
+          ) : (
+            history.map((h, i) => (
+              <View key={i} style={styles.historyRow}>
+                <Text style={styles.historyDice}>{h.dice}</Text>
+                <View style={styles.dots} />
+                <Text style={styles.historyValue}>{h.val}</Text>
+              </View>
+            ))
+          )}
+        </View>
       </View>
     </ScrollView>
   );
@@ -69,6 +69,8 @@ const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20 },
+
+    // Placar Principal
     resultContainer: {
       backgroundColor: colors.surface,
       borderRadius: 16,
@@ -77,42 +79,75 @@ const getStyles = (colors: any) =>
       marginBottom: 30,
       borderWidth: 1,
       borderColor: colors.border,
-      elevation: 3,
+      elevation: 4, // Sombra mais forte para destaque
     },
     resultLabel: {
       fontSize: 14,
       color: colors.textSecondary,
       textTransform: "uppercase",
+      fontWeight: "bold",
+      letterSpacing: 1,
     },
-    resultValue: { fontSize: 64, fontWeight: "bold", color: "#c62828" }, // Vermelho Mestre
+    resultValue: {
+      fontSize: 80,
+      fontWeight: "bold",
+      color: "#c62828", // Vermelho Sangue (Tema GM)
+      includeFontPadding: false,
+    },
 
     sectionTitle: {
       fontSize: 18,
       fontWeight: "bold",
       color: colors.text,
-      marginBottom: 12,
+      marginBottom: 16,
     },
-    diceGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 3,
-    },
-    diceBtn: {
-      width: "30%",
-      aspectRatio: 1,
-      backgroundColor: "#c62828",
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "space-evenly",
-      elevation: 2,
-    },
-    diceText: { color: "#fff", fontWeight: "bold", marginTop: 4 },
 
-    historyBox: {
+    // Histórico
+    historySection: {
+      marginTop: 30,
       backgroundColor: colors.inputBg,
+      borderRadius: 16,
       padding: 16,
-      borderRadius: 12,
     },
-    historyText: { fontSize: 16, color: colors.textSecondary, marginBottom: 4 },
+    historyHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10,
+    },
+    historyList: { gap: 8 },
+    historyRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border + "40", // Borda muito sutil
+    },
+    historyDice: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      fontWeight: "bold",
+      textTransform: "uppercase",
+    },
+    dots: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 10,
+      borderStyle: "dotted",
+      borderWidth: 1, // Simula pontilhado se supported ou linha sólida sutil
+      opacity: 0.3,
+    },
+    historyValue: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    emptyText: {
+      textAlign: "center",
+      color: colors.textSecondary,
+      fontStyle: "italic",
+      marginTop: 10,
+    },
   });

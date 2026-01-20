@@ -3,7 +3,7 @@ import { Character, Combatant } from "@/types/rpg";
 export const playerToCombatant = (
   char: Character,
   forcedId: string,
-  rolledInitiative: number
+  rolledInitiative: number,
 ): Combatant => {
   // Calcula CA total (Base + Escudo + Des) - Simplificado
   const dexMod = char.attributes["Destreza"].modifier || 0;
@@ -47,4 +47,19 @@ export const playerToCombatant = (
     },
     spells: char.grimoire || [],
   };
+};
+
+const getMod = (val: number) => Math.floor((val - 10) / 2);
+export const formatMod = (val: number) => {
+  const mod = getMod(val);
+  return mod >= 0 ? `+${mod}` : `${mod}`;
+};
+export const getActionKey = (
+  actionString: string,
+): "standard" | "bonus" | "reaction" | null => {
+  if (!actionString) return null;
+  const lower = actionString.toLowerCase();
+  if (lower.includes("bônus") || lower.includes("bonus")) return "bonus";
+  if (lower.includes("reação") || lower.includes("reacao")) return "reaction";
+  return "standard";
 };

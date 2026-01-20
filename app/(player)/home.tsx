@@ -1,22 +1,21 @@
-// app/(tabs)/index.tsx
-import { Ionicons } from "@expo/vector-icons";
-
+import { EditCharacterModal } from "@/components/modals/EditCharacterModal";
+import { GoldModal } from "@/components/modals/GoldModal";
+import { AttributeGrid } from "@/components/rpg/AttributeGrid";
+import { DeathSaveMonitor } from "@/components/rpg/DeathSaveMonitor";
+import { ResourceControl } from "@/components/rpg/ResourceControl";
 import { ThemeColors } from "@/constants/theme";
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
-import { useTheme } from "@/context/ThemeContext"; // <--- Importe o hook
-import { ANCESTRIES, CULTURAL_ORIGINS } from "@/data/origins";
-import { ALL_CLASSES, AttributeName, CharacterClass } from "@/types/rpg";
-import * as Clipboard from "expo-clipboard"; // <--- 1. IMPORTAÇÃO NOVA
-import * as ImagePicker from "expo-image-picker"; // Importação da biblioteca
+import { useTheme } from "@/context/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
 import React, { useMemo, useState } from "react";
 import {
   Image,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,17 +25,10 @@ export default function HomeScreen() {
     character,
     updateStat,
     updateImage,
-    resetCharacter,
-    updateMaxStat,
-    updateAttribute,
-    updateNameAndClass,
     updateSilver,
     performShortRest,
     performLongRest,
-    updateOrigin,
-    updateAncestry,
     updateDeathSave,
-    updateLevel,
     importCharacter,
   } = useCharacter();
 
@@ -51,7 +43,6 @@ export default function HomeScreen() {
   const [showOriginDetails, setShowOriginDetails] = useState(false); // Toggle para ver detalhes
 
   const [isMoneyModalVisible, setMoneyModalVisible] = useState(false);
-  const [tempSilver, setTempSilver] = useState("");
 
   const handleExport = async () => {
     try {
@@ -59,7 +50,7 @@ export default function HomeScreen() {
       await Clipboard.setStringAsync(dataStr);
       showAlert(
         "Ficha Copiada!",
-        "Os dados do personagem foram copiados para a área de transferência.\n\nAgora abra o aplicativo novo (Mestre) e use o botão de Importar."
+        "Os dados do personagem foram copiados para a área de transferência.\n\nAgora abra o aplicativo novo (Mestre) e use o botão de Importar.",
       );
     } catch (error) {
       showAlert("Erro", "Falha ao copiar dados para a área de transferência.");
@@ -67,16 +58,7 @@ export default function HomeScreen() {
   };
 
   const openMoneyModal = () => {
-    setTempSilver(String(character.silver || 0));
     setMoneyModalVisible(true);
-  };
-
-  const saveMoney = () => {
-    // Se vazio ou inválido, assume 0. Se quiser manter o valor anterior em caso de erro, a lógica atual está ok.
-    // Mas geralmente, em UX, campo vazio = 0.
-    const val = parseInt(tempSilver) || 0;
-    updateSilver(val);
-    setMoneyModalVisible(false);
   };
 
   const handleShortRest = () => {
@@ -86,7 +68,7 @@ export default function HomeScreen() {
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Confirmar", onPress: performShortRest },
-      ]
+      ],
     );
   };
 
@@ -97,35 +79,33 @@ export default function HomeScreen() {
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Dormir", onPress: performLongRest }, // style default (azul)
-      ]
+      ],
     );
   };
 
-  const handleReset = () => {
-    showAlert(
-      "Resetar Ficha",
-      "Tem a certeza? Isto apagará todo o progresso e restaurará os dados iniciais do código.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sim, Resetar",
-          style: "destructive",
-          onPress: () => resetCharacter(), // <--- Chama a função
-        },
-      ]
-    );
-  };
+  // const handleReset = () => {
+  //   showAlert(
+  //     "Resetar Ficha",
+  //     "Tem a certeza? Isto apagará todo o progresso e restaurará os dados iniciais do código.",
+  //     [
+  //       { text: "Cancelar", style: "cancel" },
+  //       {
+  //         text: "Sim, Resetar",
+  //         style: "destructive",
+  //         onPress: () => resetCharacter(), // <--- Chama a função
+  //       },
+  //     ]
+  //   );
+  // };
 
-  // Função para abrir a galeria
   const pickImage = async () => {
-    // Pede permissão (automático no Expo moderno, mas boa prática)
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (permissionResult.granted === false) {
       showAlert(
         "Permissão necessária",
-        "É necessário permitir o acesso à galeria para mudar a foto."
+        "É necessário permitir o acesso à galeria para mudar a foto.",
       );
       return;
     }
@@ -145,17 +125,6 @@ export default function HomeScreen() {
     }
   };
 
-  const adjustMoney = (amount: number) => {
-    // 1. Converte o texto atual para número (ou 0 se estiver vazio)
-    const currentVal = parseInt(tempSilver) || 0;
-
-    // 2. Calcula o novo valor, garantindo que não seja menor que 0
-    const newVal = Math.max(0, currentVal + amount);
-
-    // 3. Atualiza o estado do input (convertendo de volta para string)
-    setTempSilver(String(newVal));
-  };
-
   const handleImport = async () => {
     try {
       // 1. Lê o texto da memória
@@ -173,7 +142,7 @@ export default function HomeScreen() {
       if (!parsedData.name || !parsedData.stats) {
         showAlert(
           "Inválido",
-          "O texto copiado não parece ser uma ficha de personagem válida."
+          "O texto copiado não parece ser uma ficha de personagem válida.",
         );
         return;
       }
@@ -193,12 +162,12 @@ export default function HomeScreen() {
               // showAlert("Sucesso", "Personagem importado!");
             },
           },
-        ]
+        ],
       );
     } catch (error) {
       showAlert(
         "Erro",
-        "Falha ao ler ou processar a ficha. O formato está correto?"
+        "Falha ao ler ou processar a ficha. O formato está correto?",
       );
     }
   };
@@ -334,8 +303,8 @@ export default function HomeScreen() {
                 !character.ancestry
                   ? "create-outline"
                   : showOriginDetails
-                  ? "chevron-up"
-                  : "chevron-down"
+                    ? "chevron-up"
+                    : "chevron-down"
               }
               size={20}
               color={
@@ -394,103 +363,33 @@ export default function HomeScreen() {
           label="Vida"
           current={character.stats.hp.current}
           max={character.stats.hp.max}
-          color={colors.hp} // Usando cor do tema
+          color={colors.hp}
           onIncrement={() => updateStat("hp", 1)}
           onDecrement={() => updateStat("hp", -1)}
-          styles={styles} // Passando estilos
-          colors={colors} // Passando cores
         />
 
         <ResourceControl
           label="Foco"
           current={character.stats.focus.current}
           max={character.stats.focus.max}
-          color={colors.focus} // Usando cor do tema
+          color={colors.focus}
           onIncrement={() => updateStat("focus", 1)}
           onDecrement={() => updateStat("focus", -1)}
-          styles={styles}
-          colors={colors}
         />
 
         {/* --- SEÇÃO DE DEATH SAVES (CONDICIONAL) --- */}
-        {character.stats.hp.current === 0 && (
-          <View style={styles.deathSaveContainer}>
-            <Text style={styles.deathSaveTitle}>TESTES DE MORTE</Text>
 
-            <View style={styles.deathSaveRow}>
-              {/* Sucessos */}
-              <View style={styles.deathSaveGroup}>
-                <Text style={styles.deathSaveLabel}>Sucessos</Text>
-                <View style={styles.dotsContainer}>
-                  {[1, 2, 3].map((i) => (
-                    <TouchableOpacity
-                      key={`succ-${i}`}
-                      style={[
-                        styles.deathSaveDot,
-                        character.deathSaves.successes >= i &&
-                          styles.deathSaveDotSuccess,
-                      ]}
-                      onPress={() =>
-                        updateDeathSave(
-                          "success",
-                          character.deathSaves.successes === i ? i - 1 : i
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
-
-              {/* Falhas */}
-              <View style={styles.deathSaveGroup}>
-                <Text style={styles.deathSaveLabel}>Falhas</Text>
-                <View style={styles.dotsContainer}>
-                  {[1, 2, 3].map((i) => (
-                    <TouchableOpacity
-                      key={`fail-${i}`}
-                      style={[
-                        styles.deathSaveDot,
-                        character.deathSaves.failures >= i &&
-                          styles.deathSaveDotFailure,
-                      ]}
-                      onPress={() =>
-                        updateDeathSave(
-                          "failure",
-                          character.deathSaves.failures === i ? i - 1 : i
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.deathSaveHelp}>
-              Se chegar a 3 sucessos, você estabiliza. Se chegar a 3 falhas, o
-              personagem morre.
-            </Text>
-          </View>
-        )}
+        <DeathSaveMonitor
+          hp={character.stats.hp.current}
+          successes={character.deathSaves.successes}
+          failures={character.deathSaves.failures}
+          onUpdate={updateDeathSave}
+        />
 
         <View style={styles.divider} />
 
         {/* --- ATRIBUTOS --- */}
-        <View style={styles.attributesGrid}>
-          {Object.values(character.attributes).map((attr) => (
-            <View key={attr.name} style={styles.attrCard}>
-              <Text style={styles.attrLabel}>
-                {attr.name.substring(0, 3).toUpperCase()}
-              </Text>
-              <Text style={styles.attrValue}>{attr.value}</Text>
-              <View style={styles.modBadge}>
-                <Text style={styles.modText}>
-                  {attr.modifier >= 0 ? "+" : ""}
-                  {attr.modifier}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
+        <AttributeGrid attributes={character.attributes} />
 
         {/* --- BOTÃO RESET --- */}
         {/* <View style={styles.debugSection}>
@@ -535,351 +434,21 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* --- MODAL DINHEIRO --- */}
-      <Modal visible={isMoneyModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.smallModal}>
-            <Text style={styles.smallModalTitle}>Gerenciar Pratas</Text>
-
-            {/* Input Principal */}
-            <View style={styles.inputWrapper}>
-              <Ionicons
-                name="cash"
-                size={20}
-                color={colors.textSecondary}
-                style={{ marginRight: 10 }}
-              />
-              <TextInput
-                style={styles.moneyInput}
-                keyboardType="numeric"
-                value={tempSilver}
-                onChangeText={setTempSilver}
-                autoFocus
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            {/* Botões de Ajuste Rápido */}
-            <View style={styles.quickAdjustContainer}>
-              <View style={styles.quickAdjustRow}>
-                <TouchableOpacity
-                  onPress={() => adjustMoney(-10)}
-                  style={styles.adjustBtn}
-                >
-                  <Text style={styles.adjustBtnText}>-10</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => adjustMoney(-1)}
-                  style={styles.adjustBtn}
-                >
-                  <Text style={styles.adjustBtnText}>-1</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => adjustMoney(1)}
-                  style={styles.adjustBtn}
-                >
-                  <Text style={styles.adjustBtnText}>+1</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => adjustMoney(10)}
-                  style={styles.adjustBtn}
-                >
-                  <Text style={styles.adjustBtnText}>+10</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Botões de Ação */}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setMoneyModalVisible(false)}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveMoney} style={styles.saveBtn}>
-                <Text style={styles.saveText}>Salvar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <GoldModal
+        visible={isMoneyModalVisible}
+        onClose={() => setMoneyModalVisible(false)}
+        currentSilver={character.silver || 0}
+        onSave={(newVal) => updateSilver(newVal)}
+      />
 
       {/* --- MODAL EDIÇÃO (AGORA COM NÍVEL) --- */}
-      <Modal
+      <EditCharacterModal
         visible={isEditModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Editar Personagem</Text>
-            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-              <Text style={styles.closeText}>Concluir</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {/* 1. Identidade & Nível */}
-            <Text style={styles.sectionTitle}>Identidade</Text>
-
-            <View style={styles.row}>
-              {/* Campo Nome (Ocupa mais espaço) */}
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-                <Text style={styles.label}>Nome</Text>
-                <TextInput
-                  style={styles.input}
-                  value={character.name}
-                  onChangeText={(txt) =>
-                    updateNameAndClass(txt, character.class as CharacterClass)
-                  }
-                  placeholderTextColor={colors.textSecondary}
-                />
-              </View>
-
-              {/* Campo Nível (Ocupa menos espaço) */}
-              <View style={[styles.inputGroup, { width: 120 }]}>
-                <Text style={styles.label}>Nível</Text>
-                <View style={styles.stepper}>
-                  <TouchableOpacity
-                    style={styles.stepBtn}
-                    onPress={() => updateLevel(character.level - 1 || 1)}
-                  >
-                    <Ionicons name="remove" size={20} color={colors.text} />
-                  </TouchableOpacity>
-                  <Text style={styles.attrEditValue}>
-                    {character.level || 1}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.stepBtn}
-                    onPress={() => updateLevel(character.level + 1 || 1)}
-                  >
-                    <Ionicons name="add" size={20} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Classe</Text>
-              <View style={styles.classSelector}>
-                {ALL_CLASSES.map((cls) => {
-                  const isSelected = character.class === cls;
-                  const currentAncestry = ANCESTRIES.find(
-                    (a) => a.id === character.ancestry?.id
-                  );
-                  const isRestricted =
-                    currentAncestry?.restrictedClasses?.includes(cls);
-
-                  return (
-                    <TouchableOpacity
-                      key={cls}
-                      disabled={isRestricted}
-                      style={[
-                        styles.classChip,
-                        isSelected && styles.classChipActive,
-                        isRestricted && styles.classChipDisabled,
-                      ]}
-                      onPress={() => updateNameAndClass(character.name, cls)}
-                    >
-                      <Text
-                        style={[
-                          styles.classChipText,
-                          isSelected && styles.classChipTextActive,
-                          isRestricted && styles.classChipTextDisabled,
-                        ]}
-                      >
-                        {cls}
-                      </Text>
-                      {isSelected && (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={16}
-                          color="#fff"
-                          style={{ marginLeft: 4 }}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* 2. Ancestralidade */}
-            <Text style={styles.sectionTitle}>Ancestralidade</Text>
-            <View style={styles.chipContainer}>
-              {ANCESTRIES.map((anc) => (
-                <TouchableOpacity
-                  key={anc.id}
-                  style={[
-                    styles.chip,
-                    character.ancestry?.id === anc.id && styles.chipActive,
-                  ]}
-                  onPress={() => updateAncestry(anc.id)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      character.ancestry?.id === anc.id &&
-                        styles.chipTextActive,
-                    ]}
-                  >
-                    {anc.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={styles.helperText}>
-              Bônus:{" "}
-              {ANCESTRIES.find((a) => a.id === character.ancestry?.id)
-                ?.attributeBonus || "-"}
-            </Text>
-
-            {/* 3. Origem */}
-            <Text style={styles.sectionTitle}>Origem Cultural</Text>
-            <View style={styles.listSelector}>
-              {CULTURAL_ORIGINS.filter(
-                (o) =>
-                  o.ancestryId === character.ancestry?.id ||
-                  o.ancestryId === "mista"
-              ).map((orig) => (
-                <TouchableOpacity
-                  key={orig.id}
-                  style={[
-                    styles.listItem,
-                    character.culturalOrigin?.id === orig.id &&
-                      styles.listItemActive,
-                  ]}
-                  onPress={() => updateOrigin(orig.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.listItemTitle,
-                        character.culturalOrigin?.id === orig.id &&
-                          styles.listItemTitleActive,
-                      ]}
-                    >
-                      {orig.name}
-                    </Text>
-                    <Text style={styles.listItemDesc}>{orig.description}</Text>
-                  </View>
-                  {character.culturalOrigin?.id === orig.id && (
-                    <Ionicons
-                      name="checkmark"
-                      size={20}
-                      color={colors.primary}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* 4. Stats & Atributos */}
-            <Text style={styles.sectionTitle}>Status Máximos</Text>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>Vida Máx</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={String(character.stats.hp.max)}
-                  onChangeText={(t) => updateMaxStat("hp", Number(t))}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.label}>Foco Máx</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="numeric"
-                  value={String(character.stats.focus.max)}
-                  onChangeText={(t) => updateMaxStat("focus", Number(t))}
-                />
-              </View>
-            </View>
-
-            <Text style={styles.sectionTitle}>Atributos</Text>
-            <View style={styles.attributesEditor}>
-              {Object.values(character.attributes).map((attr) => (
-                <View key={attr.name} style={styles.attrEditRow}>
-                  <Text style={styles.attrEditLabel}>{attr.name}</Text>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() =>
-                        updateAttribute(
-                          attr.name as AttributeName,
-                          attr.value - 1
-                        )
-                      }
-                    >
-                      <Ionicons name="remove" size={20} color={colors.text} />
-                    </TouchableOpacity>
-                    <Text style={styles.attrEditValue}>{attr.value}</Text>
-                    <TouchableOpacity
-                      style={styles.stepBtn}
-                      onPress={() =>
-                        updateAttribute(
-                          attr.name as AttributeName,
-                          attr.value + 1
-                        )
-                      }
-                    >
-                      <Ionicons name="add" size={20} color={colors.text} />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.modPreview}>
-                    Mod: {attr.modifier >= 0 ? "+" : ""}
-                    {attr.modifier}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setEditModalVisible(false)}
+      />
     </View>
   );
 }
-
-// --- COMPONENTE DE RECURSO (MODIFICADO PARA RECEBER ESTILOS/CORES) ---
-const ResourceControl = ({
-  label,
-  current,
-  max,
-  color,
-  onIncrement,
-  onDecrement,
-  styles,
-  colors,
-}: any) => (
-  <View style={styles.resourceContainer}>
-    <View style={styles.resourceHeader}>
-      <Text style={styles.resourceLabel}>{label}</Text>
-      <Text style={styles.resourceValues}>
-        {current} / {max}
-      </Text>
-    </View>
-    <View style={styles.barBackground}>
-      <View
-        style={[
-          styles.barFill,
-          {
-            width: `${Math.min(100, (current / max) * 100)}%`,
-            backgroundColor: color,
-          },
-        ]}
-      />
-    </View>
-    <View style={styles.buttonsRow}>
-      <TouchableOpacity onPress={onDecrement} style={styles.btn}>
-        <Text style={{ color: colors.text }}>-</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={onIncrement} style={styles.btn}>
-        <Text style={{ color: colors.text }}>+</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
 
 // --- GERADOR DE ESTILOS DINÂMICO ---
 const getStyles = (colors: ThemeColors) =>
@@ -1035,36 +604,6 @@ const getStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-
-    // Atributos
-    attributesGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-    },
-    attrCard: {
-      width: "30%",
-      backgroundColor: colors.surface,
-      padding: 10,
-      alignItems: "center",
-      marginBottom: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    attrLabel: {
-      fontSize: 12,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-    },
-    attrValue: { fontSize: 22, fontWeight: "bold", color: colors.text },
-    modBadge: {
-      backgroundColor: colors.text,
-      borderRadius: 4,
-      paddingHorizontal: 6,
-      marginTop: 4,
-    },
-    modText: { color: colors.background, fontSize: 12, fontWeight: "bold" },
 
     // Debug
     debugSection: { marginTop: 20, alignItems: "center", marginBottom: 20 },
@@ -1356,63 +895,5 @@ const getStyles = (colors: ThemeColors) =>
     adjustBtnText: {
       fontWeight: "bold",
       color: colors.text,
-    },
-
-    deathSaveContainer: {
-      backgroundColor: colors.surface,
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: colors.error, // Vermelho para chamar atenção
-      marginBottom: 16,
-      alignItems: "center",
-    },
-    deathSaveTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.error,
-      marginBottom: 12,
-      letterSpacing: 2,
-    },
-    deathSaveRow: {
-      flexDirection: "row",
-      gap: 40,
-      marginBottom: 12,
-    },
-    deathSaveGroup: {
-      alignItems: "center",
-    },
-    deathSaveLabel: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-      marginBottom: 8,
-      textTransform: "uppercase",
-    },
-    dotsContainer: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    deathSaveDot: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: colors.textSecondary,
-      backgroundColor: "transparent",
-    },
-    deathSaveDotSuccess: {
-      backgroundColor: colors.success, // Verde
-      borderColor: colors.success,
-    },
-    deathSaveDotFailure: {
-      backgroundColor: colors.error, // Vermelho
-      borderColor: colors.error,
-    },
-    deathSaveHelp: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontStyle: "italic",
-      textAlign: "center",
     },
   });

@@ -15,12 +15,12 @@ interface WebSocketContextType {
     ip: string,
     sessionId: string,
     characterId: string,
-    initialData: Combatant | any
+    initialData: Combatant | any,
   ) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType>(
-  {} as WebSocketContextType
+  {} as WebSocketContextType,
 );
 
 // --- HELPER: Converter Player em Combatant ---
@@ -45,7 +45,7 @@ export const WebSocketProvider = ({
     ip: string,
     sessionId: string,
     characterId: string,
-    initialData: Combatant | any
+    initialData: Combatant | any,
   ) => {
     if (socketRef.current) {
       // Se já tiver conectado em outra, desconecta

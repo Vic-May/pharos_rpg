@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
-  Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,7 +11,9 @@ import {
 } from "react-native";
 
 // Imports de Contexto e Tipos
-import { ThemeColors } from "@/constants/theme";
+import { EquipSlot } from "@/components/rpg/EquipSlot";
+import { StatBar } from "@/components/ui/StatBar";
+import { ThemedModal } from "@/components/ui/ThemedModal";
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext"; // <--- Hook do Tema
@@ -49,9 +51,6 @@ export default function InventoryScreen() {
 
   // Estados de Item da Mochila
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemType, setNewItemType] = useState<ItemType>("consumable");
-  const [newItemQty, setNewItemQty] = useState("1");
   const [itemActionModalVisible, setItemActionModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
@@ -61,7 +60,6 @@ export default function InventoryScreen() {
   const [targetItemType, setTargetItemType] = useState<ItemType>("consumable");
 
   const [editWeight, setEditWeight] = useState("0");
-  const [newItemWeight, setNewItemWeight] = useState("0");
   const [targetItemWeight, setTargetItemWeight] = useState("0");
 
   const handleEditItemPress = () => {
@@ -78,6 +76,7 @@ export default function InventoryScreen() {
   // Salva a edição do item da mochila
   const handleSaveItemEdit = () => {
     if (!selectedItem || !targetItemName.trim()) return;
+    console.log("EDITANDO ITEM");
 
     updateItem(selectedItem.id, {
       name: targetItemName,
@@ -116,12 +115,18 @@ export default function InventoryScreen() {
 
   // --- HANDLERS MOCHILA ---
   const handleAddItem = () => {
-    if (!newItemName.trim()) return;
-    const qty = parseInt(newItemQty) || 1;
-    addItem(newItemName, newItemType, qty, parseFloat(newItemWeight) || 0);
-    setNewItemName("");
-    setNewItemQty("1");
-    setNewItemWeight("0");
+    // 1. Usar targetItemName (que é o que o Input atualiza)
+    console.log("ADICIONANDO ITEM", targetItemName.trim());
+
+    if (!targetItemName.trim()) return;
+
+    const qty = parseInt(targetItemQty) || 1;
+    const weight = parseFloat(targetItemWeight) || 0;
+
+    // 2. Passar as variáveis target para a função addItem
+    addItem(targetItemName, targetItemType, qty, weight);
+
+    // 3. Fechar o modal (O reset dos campos já é feito quando você clica no botão "+" via handleOpenAddItem)
     setAddItemModalVisible(false);
   };
 
@@ -154,6 +159,17 @@ export default function InventoryScreen() {
     }
   };
 
+  const handleOpenAddItem = () => {
+    // 1. Limpa os campos do formulário compartilhado
+    setTargetItemName("");
+    setTargetItemQty("1");
+    setTargetItemType("consumable"); // Valor padrão
+    setTargetItemWeight("0");
+
+    // 2. Abre o modal no modo "Adicionar"
+    setAddItemModalVisible(true);
+  };
+
   // Helper de Tags da Mochila (Agora usa as cores do tema)
   const getBadgeInfo = (type: ItemType) => {
     switch (type) {
@@ -178,34 +194,6 @@ export default function InventoryScreen() {
       default:
         return { label: "Item", bg: colors.border, text: colors.text };
     }
-  };
-
-  const renderLoadBar = () => {
-    const percent = Math.min((currentLoad / maxLoad) * 100, 100);
-    const barColor = isOverloaded ? colors.error : colors.primary; // Vermelho se pesado, Azul se ok
-
-    return (
-      <View style={styles.loadContainer}>
-        <View style={styles.loadHeader}>
-          <Text style={styles.loadLabel}>
-            Carga Total {isOverloaded && "(SOBRECARGA)"}
-          </Text>
-          <Text
-            style={[styles.loadValue, isOverloaded && { color: colors.error }]}
-          >
-            {currentLoad} / {maxLoad} kg
-          </Text>
-        </View>
-        <View style={styles.loadBarBg}>
-          <View
-            style={[
-              styles.loadBarFill,
-              { width: `${percent}%`, backgroundColor: barColor },
-            ]}
-          />
-        </View>
-      </View>
-    );
   };
 
   const renderItem = ({ item }: { item: Item }) => {
@@ -247,8 +235,25 @@ export default function InventoryScreen() {
 
   return (
     <View style={styles.container}>
-      {renderLoadBar()}
-      {/* Seção Fixa: Equipamentos */}
+      <View style={styles.loadContainer}>
+        <View style={styles.loadHeader}>
+          <Text style={styles.loadLabel}>
+            Carga Total {isOverloaded && "(SOBRECARGA)"}
+          </Text>
+          <Text
+            style={[styles.loadValue, isOverloaded && { color: colors.error }]}
+          >
+            {currentLoad} / {maxLoad} kg
+          </Text>
+        </View>
+        <StatBar
+          current={currentLoad}
+          max={maxLoad}
+          color={isOverloaded ? colors.error : colors.primary}
+          backgroundColor={colors.border}
+        />
+      </View>
+
       <View style={styles.equipSection}>
         <Text style={styles.sectionTitle}>Equipamento Atual</Text>
         <View style={styles.equipRow}>
@@ -260,8 +265,6 @@ export default function InventoryScreen() {
             onPress={() =>
               handleEditSlot("meleeWeapon", character.equipment.meleeWeapon)
             }
-            styles={styles}
-            colors={colors}
           />
           <EquipSlot
             label="Longo Alcance"
@@ -271,8 +274,6 @@ export default function InventoryScreen() {
             onPress={() =>
               handleEditSlot("rangedWeapon", character.equipment.rangedWeapon)
             }
-            styles={styles}
-            colors={colors}
           />
         </View>
         <View style={styles.equipRow}>
@@ -282,8 +283,6 @@ export default function InventoryScreen() {
             icon="shirt"
             type="defense"
             onPress={() => handleEditSlot("armor", character.equipment.armor)}
-            styles={styles}
-            colors={colors}
           />
           <EquipSlot
             label="Escudo"
@@ -291,8 +290,6 @@ export default function InventoryScreen() {
             icon="shield"
             type="defense"
             onPress={() => handleEditSlot("shield", character.equipment.shield)}
-            styles={styles}
-            colors={colors}
           />
         </View>
       </View>
@@ -300,8 +297,8 @@ export default function InventoryScreen() {
       {/* Seção Scrollável: Mochila */}
       <View style={styles.backpackSection}>
         <View style={styles.backpackHeader}>
-          <Text style={styles.sectionHeader}>Mochila</Text>
-          <TouchableOpacity onPress={() => setAddItemModalVisible(true)}>
+          <Text style={styles.sectionHeader}>Mochila </Text>
+          <TouchableOpacity onPress={() => handleOpenAddItem()}>
             <Ionicons name="add-circle" size={28} color={colors.primary} />
           </TouchableOpacity>
         </View>
@@ -317,368 +314,227 @@ export default function InventoryScreen() {
         />
       </View>
 
-      {/* --- MODAL 1: EDITAR EQUIPAMENTO (Slot) --- */}
-      <Modal
+      {/* --- MODAL 1: EDITAR EQUIPAMENTO --- */}
+      <ThemedModal
         visible={equipModalVisible}
-        animationType="fade"
-        transparent={true}
+        onClose={() => setEquipModalVisible(false)}
+        title="Editar Slot"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar Slot</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nome do Item</Text>
-              <TextInput
-                style={styles.input}
-                value={editName}
-                onChangeText={setEditName}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            {isDefenseSlot ? (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Bônus de Defesa (CA)</Text>
-                  <View style={styles.rowCenter}>
-                    <Text style={styles.prefix}>+</Text>
-                    <TextInput
-                      style={[styles.input, { flex: 1 }]}
-                      value={editDefense}
-                      onChangeText={setEditDefense}
-                      keyboardType="numeric"
-                      placeholderTextColor={colors.textSecondary}
-                    />
-                  </View>
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Descrição</Text>
+        <ScrollView style={{ padding: 20 }}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Nome do Item</Text>
+            <TextInput
+              style={styles.input}
+              value={editName}
+              onChangeText={setEditName}
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          {isDefenseSlot ? (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Bônus de Defesa (CA)</Text>
+                <View style={styles.rowCenter}>
+                  <Text style={styles.prefix}>+</Text>
                   <TextInput
-                    style={[styles.input, { height: 60 }]}
-                    value={editDesc}
-                    onChangeText={setEditDesc}
-                    multiline
+                    style={[styles.input, { flex: 1 }]}
+                    value={editDefense}
+                    onChangeText={setEditDefense}
+                    keyboardType="numeric"
                     placeholderTextColor={colors.textSecondary}
                   />
                 </View>
-              </>
-            ) : (
+              </View>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Dano (ex: 1d6 + 2)</Text>
+                <Text style={styles.inputLabel}>Descrição</Text>
                 <TextInput
-                  style={styles.input}
-                  value={editStats}
-                  onChangeText={setEditStats}
+                  style={[styles.input, { height: 60 }]}
+                  value={editDesc}
+                  onChangeText={setEditDesc}
+                  multiline
                   placeholderTextColor={colors.textSecondary}
                 />
               </View>
-            )}
+            </>
+          ) : (
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Peso (kg)</Text>
+              <Text style={styles.inputLabel}>Dano (ex: 1d6 + 2)</Text>
               <TextInput
                 style={styles.input}
-                keyboardType="numeric"
-                value={editWeight}
-                onChangeText={setEditWeight}
-                placeholder="0.0"
+                value={editStats}
+                onChangeText={setEditStats}
                 placeholderTextColor={colors.textSecondary}
               />
             </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setEquipModalVisible(false)}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveEquipment} style={styles.saveBtn}>
-                <Text style={styles.saveText}>Salvar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          )}
 
-      {/* --- MODAL 2: ADICIONAR ITEM --- */}
-      <Modal
-        visible={addItemModalVisible}
-        animationType="slide"
-        transparent={true}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Peso (kg)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={editWeight}
+              onChangeText={setEditWeight}
+              placeholder="0.0"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              onPress={() => setEquipModalVisible(false)}
+              style={styles.cancelBtn}
+            >
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={saveEquipment} style={styles.saveBtn}>
+              <Text style={styles.saveText}>Salvar</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </ThemedModal>
+
+      {/* --- MODAL 2 e 4: ADICIONAR/EDITAR ITEM (Reutiliza lógica visual) --- */}
+      <ThemedModal
+        visible={addItemModalVisible || editItemModalVisible}
+        onClose={() => {
+          setAddItemModalVisible(false);
+          setEditItemModalVisible(false);
+        }}
+        title={addItemModalVisible ? "Novo Item" : "Editar Item"}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Novo Item</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nome</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: Poção"
-                value={newItemName}
-                onChangeText={setNewItemName}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Quantidade</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={newItemQty}
-                onChangeText={setNewItemQty}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            <Text style={styles.inputLabel}>Tipo</Text>
-            <View style={styles.typeSelector}>
-              {(["consumable", "equipment", "key"] as ItemType[]).map((t) => (
-                <TouchableOpacity
-                  key={t}
+        <ScrollView style={{ padding: 20 }}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Nome</Text>
+            <TextInput
+              style={styles.input}
+              value={targetItemName}
+              onChangeText={setTargetItemName}
+              placeholder="Ex: Poção"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Quantidade</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={targetItemQty}
+              onChangeText={setTargetItemQty}
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          <Text style={styles.inputLabel}>Tipo</Text>
+          <View style={styles.typeSelector}>
+            {(["consumable", "equipment", "key"] as ItemType[]).map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[
+                  styles.typeChip,
+                  targetItemType === t && styles.typeChipActive,
+                ]}
+                onPress={() => setTargetItemType(t)}
+              >
+                <Text
                   style={[
-                    styles.typeChip,
-                    newItemType === t && styles.typeChipActive,
+                    styles.typeText,
+                    targetItemType === t && styles.typeTextActive,
                   ]}
-                  onPress={() => setNewItemType(t)}
                 >
-                  <Text
-                    style={[
-                      styles.typeText,
-                      newItemType === t && styles.typeTextActive,
-                    ]}
-                  >
-                    {t === "consumable"
-                      ? "Consumível"
-                      : t === "equipment"
+                  {t === "consumable"
+                    ? "Consumível"
+                    : t === "equipment"
                       ? "Equip"
                       : "Chave"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Peso Unitário (kg)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={newItemWeight}
-                onChangeText={setNewItemWeight}
-                placeholder="0.0"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setAddItemModalVisible(false)}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleAddItem} style={styles.saveBtn}>
-                <Text style={styles.saveText}>Adicionar</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
-        </View>
-      </Modal>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Peso Unitário (kg)</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={targetItemWeight}
+              onChangeText={setTargetItemWeight}
+              placeholder="0.0"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </View>
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              onPress={() => {
+                setAddItemModalVisible(false);
+                setEditItemModalVisible(false);
+              }}
+              style={styles.cancelBtn}
+            >
+              <Text style={styles.cancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={addItemModalVisible ? handleAddItem : handleSaveItemEdit}
+              style={styles.saveBtn}
+            >
+              <Text style={styles.saveText}>
+                {addItemModalVisible ? "Adicionar" : "Salvar"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </ThemedModal>
 
       {/* --- MODAL 3: AÇÕES DO ITEM --- */}
-      <Modal
+      <ThemedModal
         visible={itemActionModalVisible}
-        animationType="fade"
-        transparent={true}
+        onClose={() => setItemActionModalVisible(false)}
+        title={selectedItem?.name || "Item"}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{selectedItem?.name}</Text>
-            <Text style={styles.itemDesc}>
-              Quantidade atual: {selectedItem?.quantity}
-            </Text>
+        <View style={{ padding: 20 }}>
+          <Text style={styles.itemDesc}>
+            Quantidade atual: {selectedItem?.quantity}
+          </Text>
 
-            {/* BOTÃO USAR */}
-            {selectedItem?.type === "consumable" && (
-              <TouchableOpacity
-                style={styles.actionBtnPrimary}
-                onPress={handleConsumeItem}
-              >
-                <Ionicons name="beaker" size={20} color="#fff" />
-                <Text style={styles.actionBtnText}>Usar Item (-1)</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* BOTÃO EDITAR (NOVO) */}
+          {selectedItem?.type === "consumable" && (
             <TouchableOpacity
-              style={[
-                styles.actionBtnPrimary,
-                { backgroundColor: colors.primary },
-              ]}
-              onPress={handleEditItemPress}
+              style={styles.actionBtnPrimary}
+              onPress={handleConsumeItem}
             >
-              <Ionicons name="pencil" size={20} color="#fff" />
-              <Text style={styles.actionBtnText}>Editar Detalhes</Text>
+              <Ionicons name="beaker" size={20} color="#fff" />
+              <Text style={styles.actionBtnText}>Usar Item (-1)</Text>
             </TouchableOpacity>
+          )}
 
-            {/* BOTÃO DESCARTAR */}
-            <TouchableOpacity
-              style={styles.actionBtnDestructive}
-              onPress={handleDiscardItem}
-            >
-              <Ionicons name="trash" size={20} color="#fff" />
-              <Text style={styles.actionBtnText}>Jogar Fora (Tudo)</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionBtnPrimary,
+              { backgroundColor: colors.primary },
+            ]}
+            onPress={handleEditItemPress}
+          >
+            <Ionicons name="pencil" size={20} color="#fff" />
+            <Text style={styles.actionBtnText}>Editar Detalhes</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.closeBtnSimple}
-              onPress={() => setItemActionModalVisible(false)}
-            >
-              <Text style={styles.closeBtnText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.actionBtnDestructive}
+            onPress={handleDiscardItem}
+          >
+            <Ionicons name="trash" size={20} color="#fff" />
+            <Text style={styles.actionBtnText}>Jogar Fora (Tudo)</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-
-      {/* --- MODAL 4: EDITAR ITEM EXISTENTE (NOVO) --- */}
-      <Modal
-        visible={editItemModalVisible}
-        animationType="slide"
-        transparent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Editar Item</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nome</Text>
-              <TextInput
-                style={styles.input}
-                value={targetItemName}
-                onChangeText={setTargetItemName}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Quantidade</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={targetItemQty}
-                onChangeText={setTargetItemQty}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            <Text style={styles.inputLabel}>Tipo</Text>
-            <View style={styles.typeSelector}>
-              {(["consumable", "equipment", "key"] as ItemType[]).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[
-                    styles.typeChip,
-                    targetItemType === t && styles.typeChipActive,
-                  ]}
-                  onPress={() => setTargetItemType(t)}
-                >
-                  <Text
-                    style={[
-                      styles.typeText,
-                      targetItemType === t && styles.typeTextActive,
-                    ]}
-                  >
-                    {t === "consumable"
-                      ? "Consumível"
-                      : t === "equipment"
-                      ? "Equip"
-                      : "Chave"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Peso Unitário (kg)</Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="numeric"
-                value={targetItemWeight}
-                onChangeText={setTargetItemWeight}
-                placeholder="0.0"
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                onPress={() => setEditItemModalVisible(false)}
-                style={styles.cancelBtn}
-              >
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSaveItemEdit}
-                style={styles.saveBtn}
-              >
-                <Text style={styles.saveText}>Salvar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      </ThemedModal>
     </View>
   );
 }
 
-// Componente EquipSlot Melhorado (Recebe styles/colors)
-const EquipSlot = ({
-  label,
-  item,
-  onPress,
-  icon,
-  type,
-  styles,
-  colors,
-}: any) => {
-  const isDefense = type === "defense";
-  const displayValue = isDefense
-    ? item.defense > 0
-      ? `+${item.defense}`
-      : "+0"
-    : item.stats;
-
-  return (
-    <TouchableOpacity style={styles.slot} activeOpacity={0.7} onPress={onPress}>
-      <View style={styles.slotHeader}>
-        <Text style={styles.slotLabel}>{label}</Text>
-        <Ionicons name={icon} size={14} color={colors.textSecondary} />
-      </View>
-
-      <Text style={styles.slotValue} numberOfLines={1}>
-        {item.name || "Vazio"}
-      </Text>
-
-      {item.name !== "Nenhum" && item.name !== "Vazio" && (
-        <View style={styles.infoRow}>
-          <View style={[styles.statsBadge, isDefense && styles.defenseBadge]}>
-            <Text style={[styles.statsText, isDefense && styles.defenseText]}>
-              {isDefense ? "CA " : ""}
-              {displayValue}
-            </Text>
-          </View>
-          {isDefense && item.description ? (
-            <Ionicons
-              name="information-circle"
-              size={16}
-              color={colors.textSecondary}
-              style={{ marginLeft: 4 }}
-            />
-          ) : null}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-};
-
-// --- ESTILOS DINÂMICOS ---
-const getStyles = (colors: ThemeColors) =>
+const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-
-    // Equipamento
     equipSection: {
       backgroundColor: colors.surface,
       padding: 16,
@@ -692,49 +548,6 @@ const getStyles = (colors: ThemeColors) =>
       color: colors.text,
     },
     equipRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
-
-    // Slot
-    slot: {
-      flex: 1,
-      backgroundColor: colors.inputBg, // Melhor contraste em dark mode
-      padding: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      minHeight: 100,
-      justifyContent: "space-between",
-    },
-    slotHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 4,
-    },
-    slotLabel: {
-      fontSize: 10,
-      textTransform: "uppercase",
-      color: colors.textSecondary,
-      fontWeight: "bold",
-    },
-    slotValue: { fontSize: 16, fontWeight: "bold", color: colors.text },
-    infoRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-
-    // Badges
-    statsBadge: {
-      alignSelf: "flex-start",
-      backgroundColor: colors.border,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 4,
-    },
-    statsText: {
-      fontSize: 12,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-    },
-    defenseBadge: { backgroundColor: colors.focus + "20" }, // Azul com transparência
-    defenseText: { color: colors.focus },
-
-    // Mochila
     backpackSection: { flex: 1, backgroundColor: colors.surface },
     backpackHeader: {
       flexDirection: "row",
@@ -767,8 +580,6 @@ const getStyles = (colors: ThemeColors) =>
     },
     itemMain: { flexDirection: "column", gap: 4, alignItems: "flex-start" },
     itemName: { fontSize: 16, fontWeight: "500", color: colors.text },
-
-    // Badge da Lista (Background dinâmico definido no renderItem)
     badge: {
       paddingHorizontal: 8,
       paddingVertical: 2,
@@ -776,33 +587,8 @@ const getStyles = (colors: ThemeColors) =>
       alignSelf: "flex-start",
     },
     badgeText: { fontSize: 10, fontWeight: "bold", textTransform: "uppercase" },
-
     itemQty: { fontSize: 16, fontWeight: "bold", color: colors.textSecondary },
     separator: { height: 1, backgroundColor: colors.border },
-
-    // Modais
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.6)",
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 20,
-    },
-    modalCard: {
-      backgroundColor: colors.surface,
-      width: "100%",
-      borderRadius: 12,
-      padding: 20,
-      elevation: 5,
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      marginBottom: 20,
-      textAlign: "center",
-      color: colors.text,
-    },
-
     inputGroup: { marginBottom: 16 },
     inputLabel: { fontSize: 14, color: colors.textSecondary, marginBottom: 6 },
     input: {
@@ -814,7 +600,6 @@ const getStyles = (colors: ThemeColors) =>
       backgroundColor: colors.inputBg,
       color: colors.text,
     },
-
     rowCenter: { flexDirection: "row", alignItems: "center" },
     prefix: {
       fontSize: 18,
@@ -822,7 +607,6 @@ const getStyles = (colors: ThemeColors) =>
       marginRight: 8,
       color: colors.text,
     },
-
     modalButtons: { flexDirection: "row", gap: 10, marginTop: 10 },
     cancelBtn: {
       flex: 1,
@@ -840,7 +624,6 @@ const getStyles = (colors: ThemeColors) =>
     },
     cancelText: { color: colors.textSecondary, fontWeight: "bold" },
     saveText: { color: "#fff", fontWeight: "bold" },
-
     typeSelector: { flexDirection: "row", gap: 8, marginBottom: 20 },
     typeChip: {
       paddingHorizontal: 12,
@@ -856,13 +639,11 @@ const getStyles = (colors: ThemeColors) =>
     },
     typeText: { fontSize: 12, color: colors.textSecondary },
     typeTextActive: { color: "#fff", fontWeight: "bold" },
-
     itemDesc: {
       textAlign: "center",
       marginBottom: 20,
       color: colors.textSecondary,
     },
-
     actionBtnPrimary: {
       flexDirection: "row",
       alignItems: "center",
@@ -884,8 +665,6 @@ const getStyles = (colors: ThemeColors) =>
       gap: 8,
     },
     actionBtnText: { color: "#fff", fontWeight: "bold" },
-    closeBtnSimple: { alignItems: "center", padding: 10, marginTop: 5 },
-    closeBtnText: { color: colors.textSecondary },
     loadContainer: {
       paddingHorizontal: 16,
       paddingTop: 16,
@@ -904,20 +683,7 @@ const getStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       textTransform: "uppercase",
     },
-    loadValue: {
-      fontSize: 12,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    loadBarBg: {
-      height: 8,
-      backgroundColor: colors.border,
-      borderRadius: 4,
-      overflow: "hidden",
-    },
-    loadBarFill: {
-      height: "100%",
-    },
+    loadValue: { fontSize: 12, fontWeight: "bold", color: colors.text },
     weightBadge: {
       flexDirection: "row",
       alignItems: "center",
@@ -926,8 +692,5 @@ const getStyles = (colors: ThemeColors) =>
       borderRadius: 4,
       gap: 2,
     },
-    weightText: {
-      fontSize: 10,
-      color: colors.textSecondary,
-    },
+    weightText: { fontSize: 10, color: colors.textSecondary },
   });
