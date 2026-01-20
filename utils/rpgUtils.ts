@@ -40,7 +40,7 @@ export const playerToCombatant = (
     stances: char.stances || [],
     skills: char.skills || [],
     activeStanceId: null, // Começa neutro
-    turnActions: char.turnActions || {
+    turnActions: {
       standard: true,
       bonus: true,
       reaction: true,

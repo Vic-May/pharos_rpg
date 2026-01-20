@@ -210,6 +210,7 @@ export interface NpcTemplate {
 
   stances: Stance[];
   skills: Skill[];
+  spells: Spell[];
 
   equipment: string;
   actions: string;

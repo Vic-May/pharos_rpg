@@ -115,25 +115,26 @@ export default function NpcScreen() {
         : baseName;
 
       const npcData = {
+        name: combatantName,
         armorClass: selectedNpc.armorClass,
+        hp: { current: selectedNpc.maxHp, max: selectedNpc.maxHp },
         maxFocus: selectedNpc.maxFocus,
-        currentFocus: selectedNpc.maxFocus, // Importante inicializar
+        initiative: init,
+        currentFocus: selectedNpc.maxFocus,
         attributes: selectedNpc.attributes,
         equipment: selectedNpc.equipment,
         actions: selectedNpc.actions,
         stances: selectedNpc.stances,
         skills: selectedNpc.skills,
+        spells: selectedNpc.spells,
+        turnActions: { standard: true, bonus: true, reaction: true },
       };
 
       if (isConnected) {
         const npcPayload = {
           id: generateSafeId(combatantName), // ID único baseado no nome com número
-          name: combatantName,
-          hp: { current: selectedNpc.maxHp, max: selectedNpc.maxHp },
-          initiative: init,
           type: "npc",
           ...npcData,
-          turnActions: { standard: true, bonus: true, reaction: true },
         } as Combatant;
 
         sendMessage("GM_ADD_NPC", npcPayload);

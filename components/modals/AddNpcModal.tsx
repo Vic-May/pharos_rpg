@@ -8,9 +8,11 @@ import {
   CharacterClass,
   NpcTemplate,
   Skill,
+  Spell,
   Stance,
 } from "@/types/rpg";
 import { formatModString } from "@/utils/stringUtils";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -21,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SpellSelectorModal } from "./SpellSelectorModal";
 
 interface AddNpcModalProps {
   visible: boolean;
@@ -77,6 +80,10 @@ export const AddNpcModal = ({
     "Carisma",
   ];
 
+  const [npcSpells, setNpcSpells] = useState<Spell[]>([]);
+
+  const [spellModalVisible, setSpellModalVisible] = useState(false);
+
   useEffect(() => {
     // Só executa se o modal estiver visível
     if (visible) {
@@ -120,6 +127,8 @@ export const AddNpcModal = ({
         // Mantém as listas existentes do NPC
         setNpcStances(initialData.stances || []);
         setNpcSkills(initialData.skills || []);
+
+        setNpcSpells(initialData.spells || []); // Carregar magias existentes (se houver na interface NpcTemplate)
       } else {
         // --- MODO CRIAÇÃO (RESET) ---
         setName("");
@@ -147,6 +156,7 @@ export const AddNpcModal = ({
         setNpcStances([]);
         setNpcSkills([]);
         setFormTab("general");
+        setNpcSpells([]);
       }
     }
   }, [visible, initialData]);
@@ -188,9 +198,21 @@ export const AddNpcModal = ({
       actions,
       stances: npcStances,
       skills: npcSkills,
+      spells: npcSpells,
     };
     onSave(data);
     onClose();
+  };
+
+  const addSpell = (spell: Spell) => {
+    if (!npcSpells.find((s) => s.id === spell.id)) {
+      setNpcSpells([...npcSpells, spell]);
+    }
+    setSpellModalVisible(false);
+  };
+
+  const removeSpell = (spellId: string) => {
+    setNpcSpells(npcSpells.filter((s) => s.id !== spellId));
   };
 
   const handleAttributeChange = (key: AttributeName, text: string) => {
@@ -433,6 +455,56 @@ export const AddNpcModal = ({
 
               <View style={styles.divider} />
 
+              {/* SEÇÃO DE MAGIAS */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 10,
+                }}
+              >
+                <Text style={styles.label}>Grimório do NPC</Text>
+                <TouchableOpacity
+                  onPress={() => setSpellModalVisible(true)}
+                  style={styles.addBtnSmall}
+                >
+                  <Text style={styles.addBtnText}>+ Magia</Text>
+                </TouchableOpacity>
+              </View>
+
+              {npcSpells.length === 0 ? (
+                <Text
+                  style={{
+                    color: colors.textSecondary,
+                    fontStyle: "italic",
+                    marginBottom: 20,
+                  }}
+                >
+                  Nenhuma magia.
+                </Text>
+              ) : (
+                npcSpells.map((spell) => (
+                  <View key={spell.id} style={styles.miniItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.miniItemTitle}>{spell.name}</Text>
+                      <Text style={styles.miniItemDesc}>
+                        {spell.circle}º Círculo • {spell.school}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => removeSpell(spell.id)}>
+                      <Ionicons
+                        name="trash-outline"
+                        size={20}
+                        color={colors.error}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+
+              <View style={styles.divider} />
+
               <View style={styles.attrFormGrid}>
                 {ATTRIBUTE_ORDER.map((key) => (
                   <View key={key} style={styles.attrInputBox}>
@@ -475,6 +547,12 @@ export const AddNpcModal = ({
             </Text>
           </TouchableOpacity>
         </View>
+        <SpellSelectorModal
+          visible={spellModalVisible}
+          onClose={() => setSpellModalVisible(false)}
+          onSelect={addSpell}
+          learnedSpells={npcSpells}
+        />
       </View>
     </Modal>
   );

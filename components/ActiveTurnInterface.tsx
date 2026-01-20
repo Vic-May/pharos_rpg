@@ -199,7 +199,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     // Se tiver baseArmorClass salvo no objeto, usa ele. Se não, calcula.
     const safeBaseAC =
-      combatant.baseArmorClass ??
+      combatant.armorClass ??
       (combatant.armorClass || 10) - currentBonusOnServer;
 
     let nextStanceId = null;
