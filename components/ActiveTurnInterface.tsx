@@ -20,7 +20,7 @@ import { SpectatorCard } from "./SpectorCard";
 
 // --- HELPERS ---
 const getActionKey = (
-  actionString?: string
+  actionString?: string,
 ): "standard" | "bonus" | "reaction" | null => {
   if (!actionString) return null;
   const lower = actionString.toLowerCase();
@@ -70,9 +70,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   };
 
   // --- LÓGICA DE DADOS (Visual) ---
+  console.log("COMBATENTE: ", combatant);
   const stances = combatant.stances || [];
   const currentStanceIdx = stances.findIndex(
-    (s: any) => s.id === combatant.activeStanceId
+    (s: any) => s.id === combatant.activeStanceId,
   );
   const isNeutral = currentStanceIdx === -1;
   const activeStance = isNeutral ? null : stances[currentStanceIdx];
@@ -83,11 +84,11 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
   const hpPercent = Math.min(
     100,
-    (combatant.hp.current / combatant.hp.max) * 100
+    (combatant.hp.current / combatant.hp.max) * 100,
   );
   const focusPercent = Math.min(
     100,
-    (combatant.currentFocus / combatant.maxFocus) * 100
+    (combatant.currentFocus / combatant.maxFocus) * 100,
   );
 
   // --- HANDLER: CONJURAR MAGIA ---
@@ -136,7 +137,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       updateCombatant(
         combatant.id,
         "currentFocus",
-        Math.max(0, combatant.currentFocus - spell.cost)
+        Math.max(0, combatant.currentFocus - spell.cost),
       );
       if (actionKey) {
         updateCombatant(combatant.id, "turnActions", {
@@ -166,7 +167,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     updateCombatant(
       combatant.id,
       "currentFocus",
-      Math.max(0, combatant.currentFocus - skill.cost)
+      Math.max(0, combatant.currentFocus - skill.cost),
     );
     if (actionKey) {
       const newActions = { ...turnActions, [actionKey]: false };
@@ -192,7 +193,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   const handleStanceChange = (newIndex: number) => {
     // Lógica Segura de CA Base (Recupera base subtraindo bônus atual)
     const currentActiveStance = combatant.stances?.find(
-      (s) => s.id === combatant.activeStanceId
+      (s) => s.id === combatant.activeStanceId,
     );
     const currentBonusOnServer = currentActiveStance?.acBonus || 0;
 
@@ -257,7 +258,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     targetId: string,
     hitTotal: number,
     damageTotal: number,
-    isCrit: boolean
+    isCrit: boolean,
   ) => {
     const target = combatants.find((c) => c.id === targetId);
     if (!target) {
@@ -301,7 +302,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       updateCombatant(
         combatant.id,
         "currentFocus",
-        Math.max(0, combatant.currentFocus - focusCost)
+        Math.max(0, combatant.currentFocus - focusCost),
       );
     }
 
@@ -313,8 +314,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       isHit
         ? `Causou ${finalDamage} de dano!`
         : isGm
-        ? `Não superou a CA ${target.armorClass}.`
-        : `O ataque não superou a defesa do alvo.`
+          ? `Não superou a CA ${target.armorClass}.`
+          : `O ataque não superou a defesa do alvo.`,
     );
   };
 
@@ -499,8 +500,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
               isNeutral
                 ? styles.stanceNeutralBg
                 : currentStanceIdx === 0
-                ? styles.stanceOneBg
-                : styles.stanceTwoBg,
+                  ? styles.stanceOneBg
+                  : styles.stanceTwoBg,
             ]}
           >
             <Text style={styles.activeStanceName}>
@@ -555,8 +556,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
                 key === "standard"
                   ? colors.primary
                   : key === "bonus"
-                  ? "#fb8c00"
-                  : "#8e24aa";
+                    ? "#fb8c00"
+                    : "#8e24aa";
               return (
                 <TouchableOpacity
                   key={key}
@@ -573,8 +574,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
                     {key === "standard"
                       ? "Padrão"
                       : key === "bonus"
-                      ? "Bônus"
-                      : "Reação"}
+                        ? "Bônus"
+                        : "Reação"}
                   </Text>
                 </TouchableOpacity>
               );

@@ -114,7 +114,7 @@ export const NpcCard = ({ item, onEdit, onDelete, onCombat }: NpcCardProps) => {
                 {item.stances.map((s, index) => (
                   <Text key={s.id || index} style={styles.bodyText}>
                     • <Text style={{ fontWeight: "bold" }}>{s.name}</Text> (
-                    {s.acBonus || 0 > 0 ? `+${s.acBonus}` : s.acBonus} CA):{" "}
+                    {(s.acBonus || 0) > 0 ? `+${s.acBonus}` : s.acBonus} CA):{" "}
                     {s.benefit}
                   </Text>
                 ))}

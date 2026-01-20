@@ -1,4 +1,5 @@
 import { useTheme } from "@/context/ThemeContext";
+import { CLASS_DATA } from "@/data/classData";
 import { ANCESTRIES } from "@/data/origins";
 import {
   ALL_CLASSES,
@@ -40,7 +41,7 @@ export const AddNpcModal = ({
   // --- ESTADOS DO FORMULÁRIO (Copiados do NpcScreen) ---
   const [formTab, setFormTab] = useState<"general" | "details">("general");
   const [name, setName] = useState("");
-  const [npcClass, setNpcClass] = useState<CharacterClass | "">("");
+  const [npcClass, setNpcClass] = useState<CharacterClass>();
   const [level, setLevel] = useState("1");
   const [subline, setSubline] = useState("");
   const [hp, setHp] = useState("");
@@ -77,59 +78,97 @@ export const AddNpcModal = ({
   ];
 
   useEffect(() => {
-    if (initialData) {
-      setName(initialData.name);
-      setLevel(String(initialData.level));
-      setNpcClass(initialData.class || "");
-      setHp(String(initialData.maxHp));
-      // setHpFormula(initialData.hpFormula); // Se tiver no type, descomente
-      setAc(String(initialData.armorClass));
-      setAcDetail(initialData.acDetail || ""); // Se tiver no type, descomente
-      setSpeed(initialData.speed || "");
-      setInit(String(initialData.initiativeBonus));
-      setFocus(String(initialData.maxFocus));
-      setAttrs(
-        initialData.attributes || {
+    // Só executa se o modal estiver visível
+    if (visible) {
+      if (initialData) {
+        // --- MODO EDIÇÃO ---
+        console.log("Dados recebidos para edição:", initialData); // Debug útil
+
+        setName(initialData.name || "");
+
+        // CORREÇÃO DO NÍVEL: Garante que vira string e tem valor padrão
+        setLevel(String(initialData.level || "1"));
+
+        // CORREÇÃO DE CLASSE/ANCESTRALIDADE: Garante string vazia se for null
+        setNpcClass((initialData.class as CharacterClass) || "");
+        setAncestry(initialData.ancestry || "");
+
+        // Outros campos com proteção contra null/undefined
+        setHp(String(initialData.maxHp || "10"));
+        // setHpFormula(initialData.hpFormula || "");
+        setAc(String(initialData.armorClass || "10"));
+        setAcDetail(initialData.acDetail || "");
+        setSpeed(initialData.speed || "9m");
+        setInit(String(initialData.initiativeBonus || "0"));
+        setFocus(String(initialData.maxFocus || "0"));
+
+        // Atributos: Se não existir, usa o padrão 10
+        setAttrs(
+          initialData.attributes || {
+            Força: { name: "Força", value: 10, modifier: 0 },
+            Destreza: { name: "Destreza", value: 10, modifier: 0 },
+            Constituição: { name: "Constituição", value: 10, modifier: 0 },
+            Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
+            Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
+            Carisma: { name: "Carisma", value: 10, modifier: 0 },
+          },
+        );
+
+        setEquip(initialData.equipment || "");
+        setActions(initialData.actions || "");
+
+        // Mantém as listas existentes do NPC
+        setNpcStances(initialData.stances || []);
+        setNpcSkills(initialData.skills || []);
+      } else {
+        // --- MODO CRIAÇÃO (RESET) ---
+        setName("");
+        setLevel("1");
+        setNpcClass(undefined);
+        setAncestry("");
+        setSubline("");
+        setHp("");
+        setHpFormula("");
+        setAc("");
+        setAcDetail("");
+        setSpeed("9m");
+        setInit("");
+        setFocus("");
+        setAttrs({
           Força: { name: "Força", value: 10, modifier: 0 },
           Destreza: { name: "Destreza", value: 10, modifier: 0 },
           Constituição: { name: "Constituição", value: 10, modifier: 0 },
           Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
           Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
           Carisma: { name: "Carisma", value: 10, modifier: 0 },
-        },
-      );
-
-      setEquip(initialData.equipment || "");
-      setActions(initialData.actions || "");
-      setNpcClass(initialData.class || "");
-      setAncestry(initialData.ancestry || "");
-    } else {
-      // Resetar campos se for novo
-      // setEditingId(null);
-      setName("");
-      setSubline("");
-      setHp("");
-      setHpFormula("");
-      setAc("");
-      setAcDetail("");
-      setSpeed("");
-      setInit("");
-      setFocus("");
-      setAttrs({
-        Força: { name: "Força", value: 10, modifier: 0 },
-        Destreza: { name: "Destreza", value: 10, modifier: 0 },
-        Constituição: { name: "Constituição", value: 10, modifier: 0 },
-        Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
-        Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
-        Carisma: { name: "Carisma", value: 10, modifier: 0 },
-      });
-      setEquip("");
-      setActions("");
-      setNpcStances([]);
-      setNpcSkills([]); // Limpa as listas
-      setFormTab("general");
+        });
+        setEquip("");
+        setActions("");
+        setNpcStances([]);
+        setNpcSkills([]);
+        setFormTab("general");
+      }
     }
-  }, [initialData, visible]);
+  }, [visible, initialData]);
+
+  useEffect(() => {
+    // Só carrega automático se NÃO estivermos editando um NPC existente
+    // (para não sobrescrever customizações de um NPC salvo)
+    // OU se você quiser forçar a atualização, remova a checagem de initialData.
+    if (!initialData && npcClass && CLASS_DATA[npcClass as CharacterClass]) {
+      const data = CLASS_DATA[npcClass as CharacterClass];
+      const numericLevel = parseInt(level) || 1;
+
+      // Filtra skills por nível
+      const autoSkills = data.skills.filter(
+        (s) => (s.level || 1) <= numericLevel,
+      );
+      const autoStances = data.stances;
+
+      setNpcSkills(autoSkills);
+      setNpcStances(autoStances);
+    }
+  }, [npcClass, level, initialData]);
 
   const handleSave = () => {
     const data = {
@@ -137,6 +176,8 @@ export const AddNpcModal = ({
       subline,
       maxHp: parseInt(hp) || 10,
       //   hpFormula,
+      class: npcClass,
+      ancestry: ancestry,
       armorClass: parseInt(ac) || 10,
       acDetail,
       speed: speed || "9m",
