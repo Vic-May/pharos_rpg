@@ -19,9 +19,9 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { generateSafeId } from "@/utils/stringUtils";
 
 // Componentes Refatorados
-import { ActiveTurnInterface } from "@/components/ActiveTurnInterface"; // Sua interface de turno
-import { ReactionOverlay } from "@/components/ReactionOverlay"; // Sua barra de reação
+import { ActiveTurnInterface } from "@/components/session/ActiveTurnInterface"; // Sua interface de turno
 import { ConnectionForm } from "@/components/session/ConnectionForm"; // O novo componente
+import { ReactionOverlay } from "@/components/session/ReactionOverlay"; // Sua barra de reação
 import { SpectatorCard } from "@/components/session/SpectatorCard"; // O novo componente
 
 export default function SessionCombatScreen() {

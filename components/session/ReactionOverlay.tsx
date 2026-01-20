@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { AttackModal } from "./AttackModal";
+import { AttackModal } from "../modals/AttackModal";
 
 interface Props {
   combatant: Combatant;
@@ -47,7 +47,7 @@ export const ReactionOverlay = ({ combatant }: Props) => {
     targetId: string,
     hitTotal: number,
     damageTotal: number,
-    isCrit: boolean
+    isCrit: boolean,
   ) => {
     // Valida alvo
     const target = combatants.find((c) => c.id === targetId);
@@ -63,8 +63,8 @@ export const ReactionOverlay = ({ combatant }: Props) => {
       actionName: isCrit
         ? "Ataque de Oportunidade (Crítico!)"
         : isHit
-        ? "Ataque de Oportunidade"
-        : "Ataque de Oportunidade (Errou)",
+          ? "Ataque de Oportunidade"
+          : "Ataque de Oportunidade (Errou)",
 
       // O PULO DO GATO: CostType reaction
       costType: "reaction",
@@ -103,7 +103,7 @@ export const ReactionOverlay = ({ combatant }: Props) => {
     updateCombatant(
       combatant.id,
       "currentFocus",
-      combatant.currentFocus - skill.cost
+      combatant.currentFocus - skill.cost,
     );
     consumeReaction();
 

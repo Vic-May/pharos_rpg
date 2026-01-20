@@ -17,9 +17,9 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
 
 // Componentes
-import { ActiveTurnInterface } from "@/components/ActiveTurnInterface";
 import { CombatLog } from "@/components/gm/CombatLog";
 import { GMCombatantCard } from "@/components/gm/GMCombatantCard";
+import { ActiveTurnInterface } from "@/components/session/ActiveTurnInterface";
 import { ConnectionForm } from "@/components/session/ConnectionForm";
 
 export default function GMCombatScreen() {

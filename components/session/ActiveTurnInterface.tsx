@@ -15,29 +15,11 @@ import { useAlert } from "@/context/AlertContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
-import { AttackModal } from "./AttackModal";
+import { getActionColor, getActionKey } from "@/utils/rpgUtils";
+import { AttackModal } from "../modals/AttackModal";
 import { SpectatorCard } from "./SpectorCard";
 
-// --- HELPERS ---
-const getActionKey = (
-  actionString?: string,
-): "standard" | "bonus" | "reaction" | null => {
-  if (!actionString) return null;
-  const lower = actionString.toLowerCase();
-  if (lower.includes("bônus") || lower.includes("bonus")) return "bonus";
-  if (lower.includes("reação") || lower.includes("reacao")) return "reaction";
-  return "standard";
-};
-
 // Helper de Cores para as Skills
-const getActionColor = (type: string, colors: any) => {
-  const lower = (type || "").toLowerCase();
-  if (lower.includes("bônus") || lower.includes("bonus")) return "#fb8c00"; // Laranja
-  if (lower.includes("reação") || lower.includes("reaction")) return "#8e24aa"; // Roxo
-  if (lower.includes("padrão") || lower.includes("standard"))
-    return colors.primary; // Azul
-  return colors.textSecondary;
-};
 
 interface Props {
   combatant: Combatant;

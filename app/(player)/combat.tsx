@@ -17,6 +17,7 @@ import { Skill } from "@/types/rpg";
 // Componentes Reutilizáveis
 import { InfoRow } from "@/components/rpg/InfoRow"; // Extraia se ainda não tiver
 import { StatBar } from "@/components/ui/StatBar";
+import { getActionKey } from "@/utils/rpgUtils";
 
 // Sub-componentes locais (poderiam ser extraídos para components/rpg/SkillCard.tsx)
 const SkillCard = ({
@@ -28,14 +29,6 @@ const SkillCard = ({
   showAlert,
 }: any) => {
   const [expanded, setExpanded] = React.useState(false);
-
-  const getActionKey = (actionString: string) => {
-    if (!actionString) return null;
-    const lower = actionString.toLowerCase();
-    if (lower.includes("bônus") || lower.includes("bonus")) return "bonus";
-    if (lower.includes("reação") || lower.includes("reacao")) return "reaction";
-    return "standard";
-  };
 
   const actionKey = getActionKey(skill.action || skill.actionType);
   const hasEnoughFocus = character.stats.focus.current >= skill.cost;
