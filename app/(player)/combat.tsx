@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -8,63 +8,49 @@ import {
   View,
 } from "react-native";
 
-// Imports de Contexto e Tipos
-import { ThemeColors } from "@/constants/theme";
+// Contextos
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Skill } from "@/types/rpg";
 
-const SkillCard = ({ skill, styles, updateStat, character }: any) => {
-  const [expanded, setExpanded] = useState(false);
-  const { toggleAction } = useCharacter();
-  const { showAlert } = useAlert();
+// Componentes Reutilizáveis
+import { InfoRow } from "@/components/rpg/InfoRow"; // Extraia se ainda não tiver
+import { StatBar } from "@/components/ui/StatBar";
+import { getActionKey } from "@/utils/rpgUtils";
 
-  const getActionKey = (
-    actionString: string
-  ): "standard" | "bonus" | "reaction" | null => {
-    if (!actionString) return null;
-    const lower = actionString.toLowerCase();
-    if (lower.includes("bônus") || lower.includes("bonus")) return "bonus";
-    if (lower.includes("reação") || lower.includes("reacao")) return "reaction";
-    return "standard";
-  };
+// Sub-componentes locais (poderiam ser extraídos para components/rpg/SkillCard.tsx)
+const SkillCard = ({
+  skill,
+  styles,
+  updateStat,
+  character,
+  toggleAction,
+  showAlert,
+}: any) => {
+  const [expanded, setExpanded] = React.useState(false);
 
   const actionKey = getActionKey(skill.action || skill.actionType);
-
   const hasEnoughFocus = character.stats.focus.current >= skill.cost;
-
   const isActionAvailable = actionKey ? character.turnActions[actionKey] : true;
 
   const handleUseSkill = () => {
-    // Checa Foco
     if (!hasEnoughFocus) {
       showAlert(
         "Foco Insuficiente",
-        "Você não tem foco para usar esta habilidade."
+        "Você não tem foco para usar esta habilidade.",
       );
       return;
     }
-
-    // Checa Ação
     if (!isActionAvailable) {
       showAlert(
         "Ação Indisponível",
-        `Você já gastou sua ${skill.action || "ação"} neste turno.`
+        `Você já gastou sua ${skill.action || "ação"} neste turno.`,
       );
       return;
     }
-
-    // 3. Executa o Gasto
     updateStat("focus", -skill.cost);
-
-    // Só consome a ação se ela existir e for mapeável
-    if (actionKey) {
-      toggleAction(actionKey);
-    }
-
-    // Opcional: Feedback visual ou fechar o card
-    // setExpanded(false);
+    if (actionKey) toggleAction(actionKey);
   };
 
   return (
@@ -119,96 +105,80 @@ const SkillCard = ({ skill, styles, updateStat, character }: any) => {
 export default function CombatScreen() {
   const { character, setStanceIndex, updateStat, toggleAction, endTurn } =
     useCharacter();
+  const { colors } = useTheme();
+  const { showAlert } = useAlert();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const turnActions = character.turnActions || {
     standard: true,
     bonus: true,
     reaction: true,
   };
-
-  // Hook do Tema
-  const { colors } = useTheme();
-  const { showAlert } = useAlert();
-  // Gerar estilos dinâmicos
-  const styles = useMemo(() => getStyles(colors), [colors]);
-
   const currentStanceIdx = character.currentStanceIndex ?? -1;
   const isNeutral = currentStanceIdx === -1;
-
   const activeStance = isNeutral ? null : character.stances[currentStanceIdx];
   const focus = character.stats.focus;
   const health = character.stats.hp;
 
-  // --- CÁLCULO DINÂMICO DA CA ---
+  // Cálculo de CA (Lógica mantida)
   const armorClassInfo = useMemo(() => {
     const armorDef = character.equipment.armor.defense || 0;
     const shieldDef = character.equipment.shield.defense || 0;
-
     const dexMod =
       Object.values(character.attributes).find(
-        (attr) => attr.name === "Destreza"
+        (attr) => attr.name === "Destreza",
       )?.modifier || 0;
 
     let baseAC = 0;
-    if (armorDef === 0) {
-      baseAC = 10 + dexMod;
-    } else if (armorDef >= 16) {
-      baseAC = armorDef;
-    } else if (armorDef >= 13) {
-      baseAC = armorDef + Math.min(dexMod, 2);
-    } else {
-      baseAC = armorDef + dexMod;
-    }
-    baseAC += shieldDef;
+    if (armorDef === 0) baseAC = 10 + dexMod;
+    else if (armorDef >= 16) baseAC = armorDef;
+    else if (armorDef >= 13) baseAC = armorDef + Math.min(dexMod, 2);
+    else baseAC = armorDef + dexMod;
 
+    baseAC += shieldDef;
     let stanceMod = activeStance?.acBonus || 0;
 
     return { total: baseAC + stanceMod, stanceMod, base: baseAC };
   }, [character.equipment, character.attributes, activeStance]);
 
   const handleStanceChange = (newIndex: number) => {
-    // 1. Se for para ficar Neutro (-1), é ação livre (ou "soltar" postura)
     if (newIndex === -1) {
       setStanceIndex(-1);
       return;
     }
-
-    // 2. Se já estiver nessa postura, não faz nada
     if (character.currentStanceIndex === newIndex) return;
-
-    // 3. Verifica se tem Ação Bônus
     if (!turnActions.bonus) {
       showAlert(
         "Ação Indisponível",
-        "Entrar em uma postura requer uma Ação Bônus neste turno."
+        "Entrar em uma postura requer uma Ação Bônus neste turno.",
       );
       return;
     }
-
-    // 4. Executa: Muda a postura E gasta a ação
     setStanceIndex(newIndex);
-    toggleAction("bonus"); // Isso vai mudar de true para false
+    toggleAction("bonus");
   };
 
   const renderSkill = ({ item }: { item: Skill }) => (
     <SkillCard
       skill={item}
       styles={styles}
-      colors={colors}
       updateStat={updateStat}
       character={character}
+      toggleAction={toggleAction}
+      showAlert={showAlert}
     />
   );
+
+  const level1Skills = character.skills.filter((s) => (s.level || 1) === 1);
+  const level2Skills = character.skills.filter((s) => s.level === 2);
+  const showLevel2 = (character.level || 1) >= 2 && level2Skills.length > 0;
 
   return (
     <View style={styles.container}>
       {/* HUD DE COMBATE */}
-
-      {/* HUD DE COMBATE REORGANIZADO */}
       <View style={styles.combatHud}>
-        {/* LINHA DE CIMA: VIDA (Esquerda) e CA (Direita) */}
         <View style={styles.topRow}>
-          {/* Container de Vida (Flex maior para a barra) */}
+          {/* VIDA */}
           <View style={styles.healthContainer}>
             <View style={styles.resourceHeader}>
               <View style={styles.labelGroup}>
@@ -231,26 +201,18 @@ export default function CombatScreen() {
                 <Text style={styles.resourceMax}>/{health.max}</Text>
               </Text>
             </View>
-            <View style={styles.barBackground}>
-              <View
-                style={[
-                  styles.barFill,
-                  {
-                    width: `${Math.min(
-                      100,
-                      (health.current / health.max) * 100
-                    )}%`,
-                    backgroundColor: colors.hp || "#ef5350",
-                  },
-                ]}
-              />
-            </View>
+            <StatBar
+              current={health.current}
+              max={health.max}
+              color={colors.hp || "#ef5350"}
+              backgroundColor={colors.inputBg}
+              height={10}
+            />
           </View>
 
-          {/* Divisor Vertical Pequeno */}
           <View style={styles.verticalSeparator} />
 
-          {/* Container de Defesa (Fixo) */}
+          {/* DEFESA */}
           <View style={styles.acContainer}>
             <View style={styles.labelGroup}>
               <MaterialCommunityIcons
@@ -267,14 +229,14 @@ export default function CombatScreen() {
                   style={[
                     styles.modBadge,
                     {
-                      backgroundColor:
-                        armorClassInfo.stanceMod > 0
-                          ? colors.success + "20"
-                          : colors.error + "20",
                       borderColor:
                         armorClassInfo.stanceMod > 0
                           ? colors.success
                           : colors.error,
+                      backgroundColor:
+                        armorClassInfo.stanceMod > 0
+                          ? colors.success + "20"
+                          : colors.error + "20",
                     },
                   ]}
                 >
@@ -295,7 +257,7 @@ export default function CombatScreen() {
           </View>
         </View>
 
-        {/* LINHA DE BAIXO: FOCO (Largura Total) */}
+        {/* FOCO */}
         <View style={styles.bottomRow}>
           <View style={styles.resourceHeader}>
             <View style={styles.labelGroup}>
@@ -309,30 +271,24 @@ export default function CombatScreen() {
               <Text style={styles.resourceMax}>/{focus.max}</Text>
             </Text>
           </View>
-          <View style={styles.barBackground}>
-            <View
-              style={[
-                styles.barFill,
-                {
-                  width: `${Math.min(100, (focus.current / focus.max) * 100)}%`,
-                  backgroundColor: colors.focus,
-                },
-              ]}
-            />
-          </View>
+          <StatBar
+            current={focus.current}
+            max={focus.max}
+            color={colors.focus}
+            backgroundColor={colors.inputBg}
+            height={10}
+          />
         </View>
       </View>
 
       <ScrollView
-        style={{ maxHeight: 800 }}
-        nestedScrollEnabled={true}
-        showsVerticalScrollIndicator={true}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
+        {/* SELETOR DE POSTURA */}
         <View style={styles.stanceSelectorContainer}>
           <Text style={styles.sectionLabel}>Postura Atual</Text>
-
           <View style={styles.stanceToggleGroup}>
-            {/* Botão Neutra */}
             <TouchableOpacity
               style={[
                 styles.stanceBtn,
@@ -349,8 +305,6 @@ export default function CombatScreen() {
                 Neutra
               </Text>
             </TouchableOpacity>
-
-            {/* Botão Postura 1 */}
             <TouchableOpacity
               style={[
                 styles.stanceBtn,
@@ -369,8 +323,6 @@ export default function CombatScreen() {
                 I
               </Text>
             </TouchableOpacity>
-
-            {/* Botão Postura 2 */}
             <TouchableOpacity
               style={[
                 styles.stanceBtn,
@@ -391,23 +343,20 @@ export default function CombatScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* DETALHES DA POSTURA ATIVA */}
           <View
             style={[
               styles.stanceCard,
               isNeutral
                 ? styles.stanceNeutralBg
                 : currentStanceIdx === 0
-                ? styles.stanceOneBg
-                : styles.stanceTwoBg,
+                  ? styles.stanceOneBg
+                  : styles.stanceTwoBg,
             ]}
           >
             <Text style={styles.activeStanceName}>
               {isNeutral ? "Postura Neutra" : activeStance?.name}
             </Text>
-
             <View style={styles.divider} />
-
             {isNeutral ? (
               <Text style={styles.neutralText}>
                 Você não está focado em nenhuma técnica específica.
@@ -416,19 +365,19 @@ export default function CombatScreen() {
               <View style={styles.stanceDetails}>
                 <InfoRow
                   label="Benefício"
-                  text={activeStance?.benefit || ""}
+                  text={activeStance?.benefit}
                   color={colors.success}
                   styles={styles}
                 />
                 <InfoRow
                   label="Restrição"
-                  text={activeStance?.restriction || ""}
+                  text={activeStance?.restriction}
                   color={colors.error}
                   styles={styles}
                 />
                 <InfoRow
                   label="Manobra"
-                  text={activeStance?.maneuver || ""}
+                  text={activeStance?.maneuver}
                   color={colors.focus}
                   styles={styles}
                 />
@@ -445,212 +394,159 @@ export default function CombatScreen() {
           </View>
         </View>
 
-        {/* --- RASTREADOR DE AÇÕES (ACTIONS TRACKER) --- */}
+        {/* RASTREADOR DE AÇÕES */}
         <View style={styles.combatSection}>
           <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>
             Turno & Ações
           </Text>
-
           <View style={styles.actionsRow}>
-            {/* Ação Padrão */}
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                turnActions.standard
-                  ? { backgroundColor: colors.primary } // Azul
-                  : { backgroundColor: colors.inputBg, opacity: 0.4 },
-              ]}
-              onPress={() => toggleAction("standard")}
-            >
-              <MaterialCommunityIcons
-                name="sword-cross"
-                size={18}
-                color={turnActions.standard ? "#fff" : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.actionBtnText,
-                  {
-                    color: turnActions.standard ? "#fff" : colors.textSecondary,
-                  },
-                ]}
-              >
-                Padrão
-              </Text>
-            </TouchableOpacity>
+            {["standard", "bonus", "reaction"].map((type) => {
+              const key = type as keyof typeof turnActions;
+              const isActive = turnActions[key];
+              const color =
+                key === "standard"
+                  ? colors.primary
+                  : key === "bonus"
+                    ? "#fb8c00"
+                    : "#8e24aa";
+              const label =
+                key === "standard"
+                  ? "Padrão"
+                  : key === "bonus"
+                    ? "Bônus"
+                    : "Reação";
+              const icon =
+                key === "standard"
+                  ? "sword-cross"
+                  : key === "bonus"
+                    ? "star-four-points"
+                    : "shield-alert";
 
-            {/* Ação Bônus */}
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                turnActions.bonus
-                  ? { backgroundColor: "#fb8c00" } // Laranja
-                  : { backgroundColor: colors.inputBg, opacity: 0.4 },
-              ]}
-              onPress={() => toggleAction("bonus")}
-            >
-              <MaterialCommunityIcons
-                name="star-four-points"
-                size={18}
-                color={turnActions.bonus ? "#fff" : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.actionBtnText,
-                  {
-                    color: turnActions.bonus ? "#fff" : colors.textSecondary,
-                  },
-                ]}
-              >
-                Bônus
-              </Text>
-            </TouchableOpacity>
-
-            {/* Reação */}
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                turnActions.reaction
-                  ? { backgroundColor: "#8e24aa" } // Roxo
-                  : { backgroundColor: colors.inputBg, opacity: 0.4 },
-              ]}
-              onPress={() => toggleAction("reaction")}
-            >
-              <MaterialCommunityIcons
-                name="shield-alert"
-                size={18}
-                color={turnActions.reaction ? "#fff" : colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.actionBtnText,
-                  {
-                    color: turnActions.reaction ? "#fff" : colors.textSecondary,
-                  },
-                ]}
-              >
-                Reação
-              </Text>
-            </TouchableOpacity>
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.actionBtn,
+                    {
+                      backgroundColor: isActive ? color : colors.inputBg,
+                      opacity: isActive ? 1 : 0.4,
+                    },
+                  ]}
+                  onPress={() => toggleAction(key)}
+                >
+                  <MaterialCommunityIcons
+                    name={icon}
+                    size={18}
+                    color={isActive ? "#fff" : colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.actionBtnText,
+                      { color: isActive ? "#fff" : colors.textSecondary },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-
           <TouchableOpacity style={styles.endTurnBtn} onPress={endTurn}>
             <Text style={styles.endTurnText}>ENCERRAR TURNO ↻</Text>
           </TouchableOpacity>
         </View>
 
-        {(() => {
-          const level1Skills = character.skills.filter(
-            (s) => (s.level || 1) === 1
-          );
+        {/* LISTA DE HABILIDADES */}
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>Habilidades</Text>
 
-          // Nível 2 sempre terá a chave, pois são novos.
-          const level2Skills = character.skills.filter((s) => s.level === 2);
+          <Text style={styles.subHeader}>Nível 1</Text>
+          <View style={styles.listContent}>
+            {level1Skills.length > 0 ? (
+              level1Skills.map((item) => (
+                <React.Fragment key={item.id}>
+                  {renderSkill({ item })}
+                </React.Fragment>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>Nenhuma habilidade.</Text>
+            )}
+          </View>
 
-          // Verifica se o personagem tem nível suficiente para ver a seção 2
-          const showLevel2 =
-            (character.level || 1) >= 2 && level2Skills.length > 0;
-
-          return (
-            <View style={styles.section}>
-              <Text style={styles.sectionHeader}>Habilidades</Text>
-
-              {/* --- ADICIONADO: ScrollView Interno --- */}
-              {/* --- SEÇÃO NÍVEL 1 --- */}
-              <Text style={styles.subHeader}>Nível 1</Text>
+          {showLevel2 && (
+            <>
+              <Text style={[styles.subHeader, { marginTop: 16 }]}>Nível 2</Text>
               <View style={styles.listContent}>
-                {level1Skills.length > 0 ? (
-                  level1Skills.map((item) => (
-                    <React.Fragment key={item.id}>
-                      {renderSkill({ item })}
-                    </React.Fragment>
-                  ))
-                ) : (
-                  <Text
-                    style={{ color: colors.textSecondary, fontStyle: "italic" }}
-                  >
-                    Nenhuma habilidade.
-                  </Text>
-                )}
+                {level2Skills.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderSkill({ item })}
+                  </React.Fragment>
+                ))}
               </View>
-
-              {/* --- SEÇÃO NÍVEL 2 (Condicional) --- */}
-              {showLevel2 && (
-                <>
-                  <Text style={[styles.subHeader, { marginTop: 16 }]}>
-                    Nível 2
-                  </Text>
-                  <View style={styles.listContent}>
-                    {level2Skills.map((item) => (
-                      <React.Fragment key={item.id}>
-                        {renderSkill({ item })}
-                      </React.Fragment>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {/* Um espaçamento extra no final do scroll interno */}
-              <View style={{ height: 20 }} />
-            </View>
-          );
-        })()}
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-// Componente InfoRow (Recebe styles/colors agora)
-const InfoRow = ({ label, text, color, styles }: any) => (
-  <View style={styles.infoRow}>
-    <Text style={[styles.infoLabel, { color }]}>{label}:</Text>
-    <Text style={styles.infoText}>{text}</Text>
-  </View>
-);
-
-// --- GERADOR DE ESTILOS DINÂMICO ---
-const getStyles = (colors: ThemeColors) =>
+// Styles reduzidos mantendo os específicos de layout
+const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-
-    focusContainer: { flex: 2, marginRight: 16 },
-    focusHeader: {
+    // HUD
+    combatHud: {
+      backgroundColor: colors.surface,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      elevation: 4,
+      marginBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 12,
+    },
+    topRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    healthContainer: { flex: 1, marginRight: 16 },
+    bottomRow: { width: "100%" },
+    verticalSeparator: {
+      width: 1,
+      height: 40,
+      backgroundColor: colors.border,
+      marginRight: 16,
+    },
+    acContainer: { alignItems: "center", minWidth: 60 },
+    resourceHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-end",
       marginBottom: 6,
     },
-
-    focusValue: { fontSize: 12, color: colors.textSecondary },
-    focusCurrent: { fontSize: 18, fontWeight: "bold", color: colors.text },
-    focusMax: { fontSize: 14, color: colors.textSecondary },
-    focusBarBg: {
-      height: 8,
-      backgroundColor: colors.border,
-      borderRadius: 4,
-      overflow: "hidden",
+    labelGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
+    hudLabel: { fontSize: 11, fontWeight: "bold", color: colors.textSecondary },
+    resourceValue: { fontSize: 12, color: colors.textSecondary },
+    resourceCurrent: { fontSize: 16, fontWeight: "900" },
+    resourceMax: { fontSize: 12, fontWeight: "600", opacity: 0.7 },
+    acValueContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      marginTop: 2,
     },
-    focusBarFill: { height: "100%", borderRadius: 4 },
-
-    healthValue: { fontSize: 12, color: colors.textSecondary },
-    healthCurrent: { fontSize: 18, fontWeight: "bold", color: colors.text },
-    healthMax: { fontSize: 14, color: colors.textSecondary },
-    healthBarBg: {
-      height: 8,
-      backgroundColor: colors.border,
-      borderRadius: 4,
-      overflow: "hidden",
+    acTotal: { fontSize: 28, fontWeight: "bold", color: colors.text },
+    modBadge: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 1,
     },
-    healthBarFill: { height: "100%", borderRadius: 4 },
-
-    verticalDivider: {
-      width: 1,
-      height: "80%",
-      backgroundColor: colors.border,
-      marginHorizontal: 8,
-    },
-
-    // SELETOR DE POSTURA
+    // Stance & Actions
     stanceSelectorContainer: { marginHorizontal: 16, marginBottom: 16 },
     sectionLabel: {
       fontSize: 12,
@@ -659,10 +555,9 @@ const getStyles = (colors: ThemeColors) =>
       textTransform: "uppercase",
       marginBottom: 8,
     },
-
     stanceToggleGroup: {
       flexDirection: "row",
-      backgroundColor: colors.inputBg, // Fundo do switch
+      backgroundColor: colors.inputBg,
       borderRadius: 8,
       padding: 2,
       marginBottom: 8,
@@ -674,31 +569,25 @@ const getStyles = (colors: ThemeColors) =>
       borderRadius: 6,
     },
     stanceBtnText: { fontWeight: "600", color: colors.textSecondary },
-
-    // Botões Ativos
     stanceBtnNeutralActive: { backgroundColor: colors.surface, elevation: 2 },
-    stanceBtnP1Active: { backgroundColor: "#1976d2", elevation: 2 }, // Azul Fixo
-    stanceBtnP2Active: { backgroundColor: "#f57c00", elevation: 2 }, // Laranja Fixo
-    stanceBtnTextActive: { color: colors.text }, // Texto do neutro ativo
-
-    // CARD DE POSTURA
+    stanceBtnP1Active: { backgroundColor: "#1976d2", elevation: 2 },
+    stanceBtnP2Active: { backgroundColor: "#f57c00", elevation: 2 },
+    stanceBtnTextActive: { color: colors.text },
     stanceCard: {
       borderRadius: 12,
       padding: 16,
       elevation: 2,
       minHeight: 120,
-      backgroundColor: colors.surface, // Fundo padrão para Dark Mode
+      backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border, // Borda sutil
+      borderColor: colors.border,
     },
-    // Bordas Laterais Coloridas
     stanceNeutralBg: {
       borderLeftWidth: 5,
       borderLeftColor: colors.textSecondary,
     },
     stanceOneBg: { borderLeftWidth: 5, borderLeftColor: "#1976d2" },
     stanceTwoBg: { borderLeftWidth: 5, borderLeftColor: "#f57c00" },
-
     activeStanceName: {
       fontSize: 20,
       fontWeight: "bold",
@@ -714,106 +603,8 @@ const getStyles = (colors: ThemeColors) =>
       marginTop: 10,
     },
     stanceDetails: { gap: 8 },
-
-    // Info Row
-    infoRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "flex-start",
-    },
-    infoLabel: { fontWeight: "bold", marginRight: 6, fontSize: 14 },
-    infoText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      flex: 1,
-      lineHeight: 20,
-    },
-
-    // Lista
-    sectionHeader: {
-      fontSize: 18,
-      fontWeight: "bold",
-      marginLeft: 16,
-      marginBottom: 8,
-      color: colors.text,
-    },
-    listContent: { paddingHorizontal: 16, paddingBottom: 20 },
-
-    // Skill Card
-    skillCard: {
-      backgroundColor: colors.surface,
-      marginBottom: 10,
-      borderRadius: 8,
-      padding: 16,
-      elevation: 1,
-      borderWidth: 1,
-      borderColor: colors.border, // Ajuda a separar no fundo escuro
-    },
-    skillHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    skillName: { fontSize: 16, fontWeight: "bold", color: colors.text },
-    skillType: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-
-    costBadge: {
-      backgroundColor: colors.inputBg,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 4,
-    },
-    costBadgeDisabled: {
-      backgroundColor: colors.error + "15", // Transparente
-      borderWidth: 1,
-      borderColor: colors.error,
-    },
-    costText: { fontSize: 12, fontWeight: "bold", color: colors.text },
-    costTextDisabled: { color: colors.error },
-
-    skillBody: {
-      marginTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      paddingTop: 8,
-    },
-    description: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
-    useButton: {
-      marginTop: 12,
-      backgroundColor: colors.primary,
-      paddingVertical: 10,
-      borderRadius: 6,
-      alignItems: "center",
-    },
-    useButtonDisabled: { backgroundColor: colors.border },
-    useButtonText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
-    subHeader: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: colors.primary, // Ou uma cor de destaque
-      marginBottom: 8,
-      marginLeft: 16,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-    },
-    section: {
-      // backgroundColor: colors.surface,
-      borderRadius: 12,
-      // padding: 16,
-      marginBottom: 24, // Espaço entre uma seção e outra
-      // borderWidth: 1,
-      borderColor: colors.border,
-      // Sombra suave para destacar do fundo
-      elevation: 2, // Android
-      shadowColor: "#000", // iOS
-      shadowOffset: { width: 0, height: 2 }, // iOS
-      shadowOpacity: 0.1, // iOS
-      shadowRadius: 4, // iOS
-    },
-    // RASTREADOR DE AÇÕES (Combat Section)
     combatSection: { marginHorizontal: 16, marginTop: 12, marginBottom: 20 },
     sectionTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
-
     actionsRow: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -835,7 +626,6 @@ const getStyles = (colors: ThemeColors) =>
       fontSize: 11,
       textTransform: "uppercase",
     },
-
     endTurnBtn: {
       backgroundColor: colors.surface,
       borderWidth: 1,
@@ -853,110 +643,83 @@ const getStyles = (colors: ThemeColors) =>
       textTransform: "uppercase",
       letterSpacing: 1,
     },
-
-    combatHud: {
-      backgroundColor: colors.surface,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      elevation: 4, // Sombra Android
-      shadowColor: "#000", // Sombra iOS
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      marginBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      gap: 12, // Espaço entre a linha de cima e a de baixo
-    },
-
-    // LINHA SUPERIOR (Vida + CA)
-    topRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    healthContainer: {
-      flex: 1, // Ocupa o espaço que sobrar
-      marginRight: 16,
-    },
-    verticalSeparator: {
-      width: 1,
-      height: 40,
-      backgroundColor: colors.border,
-      marginRight: 16,
-    },
-    acContainer: {
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: 60,
-    },
-
-    // LINHA INFERIOR (Foco)
-    bottomRow: {
-      width: "100%",
-    },
-
-    // ESTILOS DE RECURSO (Compartilhados para Vida e Foco)
-    resourceHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      marginBottom: 6,
-    },
-    labelGroup: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    hudLabel: {
-      fontSize: 11,
+    // Skill List
+    section: { borderRadius: 12, marginBottom: 24, borderColor: colors.border },
+    sectionHeader: {
+      fontSize: 18,
       fontWeight: "bold",
-      color: colors.textSecondary,
-      letterSpacing: 0.5,
-    },
-    resourceValue: {
-      fontSize: 12,
-      color: colors.textSecondary,
-    },
-    resourceCurrent: {
-      fontSize: 16,
-      fontWeight: "900",
-    },
-    resourceMax: {
-      fontSize: 12,
-      fontWeight: "600",
-      opacity: 0.7,
-    },
-    barBackground: {
-      height: 10, // Barra um pouco mais grossa
-      backgroundColor: colors.inputBg, // Cor de fundo da barra (cinza/escuro)
-      borderRadius: 5,
-      overflow: "hidden",
-    },
-    barFill: {
-      height: "100%",
-      borderRadius: 5,
-    },
-
-    // CA ESPECÍFICOS
-    acValueContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginTop: 2,
-    },
-    acTotal: {
-      fontSize: 28,
-      fontWeight: "bold",
+      marginLeft: 16,
+      marginBottom: 8,
       color: colors.text,
-      includeFontPadding: false, // Remove padding extra no Android
     },
-    modBadge: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      justifyContent: "center",
-      alignItems: "center",
+    subHeader: {
+      fontSize: 14,
+      fontWeight: "bold",
+      color: colors.primary,
+      marginBottom: 8,
+      marginLeft: 16,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    listContent: { paddingHorizontal: 16, paddingBottom: 20 },
+    emptyText: { color: colors.textSecondary, fontStyle: "italic" },
+    // Skill Card Local Styles
+    skillCard: {
+      backgroundColor: colors.surface,
+      marginBottom: 10,
+      borderRadius: 8,
+      padding: 16,
+      elevation: 1,
       borderWidth: 1,
+      borderColor: colors.border,
+    },
+    skillHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    skillName: { fontSize: 16, fontWeight: "bold", color: colors.text },
+    skillType: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+    costBadge: {
+      backgroundColor: colors.inputBg,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 4,
+    },
+    costBadgeDisabled: {
+      backgroundColor: colors.error + "15",
+      borderWidth: 1,
+      borderColor: colors.error,
+    },
+    costText: { fontSize: 12, fontWeight: "bold", color: colors.text },
+    costTextDisabled: { color: colors.error },
+    skillBody: {
+      marginTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+    },
+    description: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
+    useButton: {
+      marginTop: 12,
+      backgroundColor: colors.primary,
+      paddingVertical: 10,
+      borderRadius: 6,
+      alignItems: "center",
+    },
+    useButtonDisabled: { backgroundColor: colors.border },
+    useButtonText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+    // Info Row
+    infoRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "flex-start",
+    },
+    infoLabel: { fontWeight: "bold", marginRight: 6, fontSize: 14 },
+    infoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      flex: 1,
+      lineHeight: 20,
     },
   });
