@@ -1,11 +1,6 @@
 import { Character, Combatant } from "@/types/rpg";
 
-export const playerToCombatant = (
-  char: Character,
-  forcedId: string,
-  rolledInitiative: number,
-): Combatant => {
-  // Calcula CA total (Base + Escudo + Des) - Simplificado
+const playerArmor = (char: Character) => {
   const dexMod = char.attributes["Destreza"].modifier || 0;
   const armorDef = char.equipment?.armor?.defense || 0;
   const shieldDef = char.equipment?.shield?.defense || 0;
@@ -22,6 +17,16 @@ export const playerToCombatant = (
   }
   ac += shieldDef;
 
+  return ac;
+};
+
+export const playerToCombatant = (
+  char: Character,
+  forcedId: string,
+  rolledInitiative: number,
+): Combatant => {
+  // Calcula CA total (Base + Escudo + Des) - Simplificado
+
   return {
     id: forcedId,
     name: char.name,
@@ -29,7 +34,7 @@ export const playerToCombatant = (
     type: "player",
     hp: { current: char.stats.hp.current, max: char.stats.hp.max },
     initiative: rolledInitiative,
-    armorClass: ac,
+    armorClass: playerArmor(char),
     currentFocus: char.stats.focus.current,
     maxFocus: char.stats.focus.max,
     attributes: char.attributes,

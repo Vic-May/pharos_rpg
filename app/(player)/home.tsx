@@ -40,7 +40,7 @@ export default function HomeScreen() {
 
   // Estado para controlar a visibilidade do Modal de Edição
   const [isEditModalVisible, setEditModalVisible] = useState(false);
-  const [showOriginDetails, setShowOriginDetails] = useState(false); // Toggle para ver detalhes
+  const [showOriginDetails, setShowOriginDetails] = useState(false);
 
   const [isMoneyModalVisible, setMoneyModalVisible] = useState(false);
 
