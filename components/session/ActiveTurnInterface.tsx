@@ -3,10 +3,13 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -19,11 +22,9 @@ import { getActionColor, getActionKey } from "@/utils/rpgUtils";
 import { AttackModal } from "../modals/AttackModal";
 import { SpectatorCard } from "./SpectatorCard";
 
-// Helper de Cores para as Skills
-
 interface Props {
   combatant: Combatant;
-  isGm?: boolean; // Flag para saber se é o mestre controlando
+  isGm?: boolean;
 }
 
 export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
@@ -35,14 +36,54 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
   const [attackModalOpen, setAttackModalOpen] = useState(false);
   const [battlefieldVisible, setBattlefieldVisible] = useState(false);
-
-  // Estado para configurar o modal quando for magia
   const [spellAttackConfig, setSpellAttackConfig] = useState<{
     bonus: string;
     damage: string;
     name: string;
     cost: number;
   } | null>(null);
+
+  // --- LOGICA DE MORTE ---
+  // Se HP <= 0, o personagem está caído/morrendo
+  const isDying = combatant.hp.current <= 0;
+  const [manualDeathInput, setManualDeathInput] = useState("");
+
+  const handleDeathSave = (manualRoll?: number) => {
+    let d20: number;
+    if (manualRoll !== undefined) {
+      if (isNaN(manualRoll) || manualRoll < 1 || manualRoll > 20) {
+        showAlert("Valor Inválido", "Insira um valor entre 1 e 20.");
+        return;
+      }
+      d20 = manualRoll;
+    } else {
+      d20 = Math.floor(Math.random() * 20) + 1;
+    }
+    // 1. Rolar d20
+    const isSuccess = d20 >= 10;
+    const critSuccess = d20 === 20;
+    const critFail = d20 === 1;
+
+    let resultText = `Rolagem: ${d20} - ${isSuccess ? "SUCESSO" : "FALHA"}`;
+    if (critSuccess) resultText += " CRÍTICO! (Levanta com 1 PV)";
+    if (critFail) resultText += " CRÍTICA! (2 Falhas)";
+
+    // 2. Enviar para o Mestre/WebSocket
+    const payload = {
+      combatantId: combatant.id,
+      rollValue: d20,
+    };
+
+    sendMessage("ROLL_DEATH_SAVE", payload);
+
+    showAlert(
+      isSuccess ? "Você resistiu!" : "A morte se aproxima...",
+      resultText,
+    );
+
+    handleEndTurn();
+    setManualDeathInput("");
+  };
 
   // Garante que actions existe com valores padrão
   const turnActions = combatant.turnActions || {
@@ -52,7 +93,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   };
 
   // --- LÓGICA DE DADOS (Visual) ---
-  console.log("COMBATENTE: ", combatant);
   const stances = combatant.stances || [];
   const currentStanceIdx = stances.findIndex(
     (s: any) => s.id === combatant.activeStanceId,
@@ -60,7 +100,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   const isNeutral = currentStanceIdx === -1;
   const activeStance = isNeutral ? null : stances[currentStanceIdx];
 
-  // Cálculos de Status
   const stanceBonus = activeStance?.acBonus || 0;
   const totalAC = combatant.armorClass || 10;
 
@@ -73,9 +112,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     (combatant.currentFocus / combatant.maxFocus) * 100,
   );
 
-  // --- HANDLER: CONJURAR MAGIA ---
+  // --- HANDLERS EXISTENTES ---
   const handleCastSpell = (spell: Spell) => {
-    // 1. Validações
     if (combatant.currentFocus < spell.cost) {
       showAlert("Sem Foco", "Foco insuficiente.");
       return;
@@ -86,7 +124,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       return;
     }
 
-    // 2. MAGIA DE ATAQUE (Abre Modal)
     if (spell.isAttack) {
       const intMod = combatant.attributes?.["Inteligência"]?.modifier || 0;
       const wisMod = combatant.attributes?.["Sabedoria"]?.modifier || 0;
@@ -100,12 +137,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
 
       setAttackModalOpen(true);
-    }
-    // 3. MAGIA DE UTILIDADE/CURA (Resolve Direto)
-    else {
+    } else {
       const payload: ResolveActionPayload = {
         attackerId: combatant.id,
-        targetId: null, // Self ou definido pelo Mestre manualmente
+        targetId: null,
         actionName: spell.name,
         costType: actionKey || "standard",
         focusCost: spell.cost,
@@ -115,7 +150,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
       sendMessage("RESOLVE_ACTION", payload);
 
-      // Consumo Local
       updateCombatant(
         combatant.id,
         "currentFocus",
@@ -132,7 +166,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     }
   };
 
-  // --- HANDLER: HABILIDADE FÍSICA ---
   const handleUseSkill = (skill: Skill) => {
     const actionKey = getActionKey(skill.actionType);
 
@@ -145,7 +178,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       return;
     }
 
-    // Update Local
     updateCombatant(
       combatant.id,
       "currentFocus",
@@ -156,7 +188,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       updateCombatant(combatant.id, "turnActions", newActions);
     }
 
-    // Payload
     const payload: ResolveActionPayload = {
       attackerId: combatant.id,
       targetId: null,
@@ -171,15 +202,12 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     showAlert("Habilidade", `${skill.name} utilizada.`);
   };
 
-  // --- HANDLER: POSTURAS (CORRIGIDO COM BASE_AC) ---
   const handleStanceChange = (newIndex: number) => {
-    // Lógica Segura de CA Base (Recupera base subtraindo bônus atual)
     const currentActiveStance = combatant.stances?.find(
       (s) => s.id === combatant.activeStanceId,
     );
     const currentBonusOnServer = currentActiveStance?.acBonus || 0;
 
-    // Se tiver baseArmorClass salvo no objeto, usa ele. Se não, calcula.
     const safeBaseAC =
       combatant.armorClass ??
       (combatant.armorClass || 10) - currentBonusOnServer;
@@ -189,7 +217,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     if (newIndex !== -1) {
       const newStance = combatant.stances[newIndex];
-      if (combatant.activeStanceId === newStance.id) return; // Já está nela
+      if (combatant.activeStanceId === newStance.id) return;
 
       if (!turnActions.bonus) {
         showAlert("Ação Indisponível", "Entrar em postura requer Ação Bônus.");
@@ -199,12 +227,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       nextStanceId = newStance.id;
       nextAC = safeBaseAC + (newStance.acBonus || 0);
 
-      // Consome ação
       const newActions = { ...turnActions, bonus: false };
       updateCombatant(combatant.id, "turnActions", newActions);
     }
 
-    // Atualiza Local e Envia
     updateCombatant(combatant.id, "activeStanceId", nextStanceId);
     updateCombatant(combatant.id, "armorClass", nextAC);
 
@@ -235,7 +261,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     setSpellAttackConfig(null);
   };
 
-  // --- HANDLER: CONFIRMAR ATAQUE (MODAL) ---
   const handleConfirmAttack = (
     targetId: string,
     hitTotal: number,
@@ -251,7 +276,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     const isHit = isCrit || hitTotal >= target.armorClass;
     const finalDamage = isHit ? damageTotal : 0;
 
-    // Detecta se foi Magia ou Ataque Físico
     const isSpell = !!spellAttackConfig;
     let actionName = isSpell ? spellAttackConfig.name : "Ataque Básico";
     if (isCrit) actionName += " (Crítico!)";
@@ -271,7 +295,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     sendMessage("RESOLVE_ACTION", payload);
 
-    // Consome Ação Padrão (Visual)
     if (turnActions.standard) {
       updateCombatant(combatant.id, "turnActions", {
         ...turnActions,
@@ -279,7 +302,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
     }
 
-    // Consome Foco da Magia (Visual)
     if (focusCost > 0) {
       updateCombatant(
         combatant.id,
@@ -290,7 +312,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     setSpellAttackConfig(null);
 
-    // Névoa de Guerra no Feedback
     showAlert(
       isHit ? "Sucesso" : "Errou",
       isHit
@@ -301,6 +322,65 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     );
   };
 
+  // --- RENDERIZAÇÃO CONDICIONAL DE MORTE ---
+  if (isDying) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.deathContainer}>
+            <MaterialCommunityIcons
+              name="skull-outline"
+              size={80}
+              color={colors.error}
+            />
+            <Text style={styles.deathTitle}>VOCÊ ESTÁ CAÍDO!</Text>
+            <Text style={styles.deathSubtitle}>
+              Sua vida chegou a 0. Role o dado no app ou digite o valor do seu
+              dado físico.
+            </Text>
+
+            {/* OPÇÃO 1: ROLAR PELO APP */}
+            <TouchableOpacity
+              style={styles.deathBtn}
+              onPress={() => handleDeathSave()} // Sem argumentos = Automático
+            >
+              <MaterialCommunityIcons name="dice-d20" size={24} color="#fff" />
+              <Text style={styles.deathBtnText}>ROLAR AGORA (APP)</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.dividerText}>— OU —</Text>
+
+            {/* OPÇÃO 2: VALOR MANUAL */}
+            <View style={styles.manualRow}>
+              <TextInput
+                style={styles.manualInput}
+                placeholder="Valor"
+                placeholderTextColor="#ff8a80"
+                keyboardType="number-pad"
+                maxLength={2}
+                value={manualDeathInput}
+                onChangeText={setManualDeathInput}
+              />
+              <TouchableOpacity
+                style={styles.manualBtn}
+                onPress={() => handleDeathSave(Number(manualDeathInput))}
+              >
+                <Text style={styles.manualBtnText}>CONFIRMAR DADO FÍSICO</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // --- RENDERIZAÇÃO NORMAL (Combate Ativo) ---
   return (
     <ScrollView style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 16, marginTop: 10, marginBottom: 5 }}>
@@ -760,6 +840,48 @@ const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
+    // ESTILOS DE DEATH SAVE (NOVO)
+    deathContainer: {
+      // flex: 1,
+      // justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#1a0505", // Fundo bem escuro avermelhado
+      padding: 24,
+    },
+    deathTitle: {
+      fontSize: 32,
+      fontWeight: "900",
+      color: colors.error,
+      marginTop: 16,
+      textAlign: "center",
+      letterSpacing: 2,
+    },
+    deathSubtitle: {
+      fontSize: 16,
+      color: "#ff8a80",
+      textAlign: "center",
+      marginVertical: 12,
+      marginBottom: 40,
+    },
+    deathBtn: {
+      backgroundColor: colors.error,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 32,
+      paddingVertical: 16,
+      borderRadius: 50,
+      gap: 12,
+      elevation: 10,
+      shadowColor: colors.error,
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+    },
+    deathBtnText: {
+      color: "#fff",
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+
     // HUD ATIVO
     combatHud: {
       backgroundColor: colors.surface,
@@ -1003,13 +1125,6 @@ const getStyles = (colors: any) =>
       color: colors.text,
       marginVertical: 8,
     },
-    label: {
-      fontSize: 12,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-      marginBottom: 6,
-      textTransform: "uppercase",
-    },
     input: {
       backgroundColor: colors.inputBg,
       padding: 14,
@@ -1118,5 +1233,43 @@ const getStyles = (colors: any) =>
       padding: 16,
       borderBottomWidth: 1,
       backgroundColor: colors.surface,
+    },
+    dividerText: {
+      color: "#ff8a80",
+      fontWeight: "bold",
+      marginVertical: 16,
+      opacity: 0.7,
+    },
+    manualRow: {
+      flexDirection: "row",
+      gap: 10,
+      width: "100%",
+      marginBottom: 20,
+      justifyContent: "center",
+    },
+    manualInput: {
+      backgroundColor: "rgba(255, 0, 0, 0.1)",
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: 8,
+      color: "#fff",
+      width: 80,
+      textAlign: "center",
+      fontSize: 18,
+      fontWeight: "bold",
+      padding: 12,
+    },
+    manualBtn: {
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: 8,
+      justifyContent: "center",
+      paddingHorizontal: 16,
+    },
+    manualBtnText: {
+      color: colors.error,
+      fontWeight: "bold",
+      fontSize: 12,
     },
   });
