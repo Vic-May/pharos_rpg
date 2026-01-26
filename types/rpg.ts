@@ -188,43 +188,44 @@ export interface Character {
 }
 
 export interface Combatant {
-  id: string;
+  // Identificação
+  id: string; // ID único na sessão de combate
+  templateId?: string; // ID original (do Character ou NpcTemplate)
   name: string;
   baseName?: string;
-  initiative: number;
-  hp: {
-    current: number;
-    max: number;
-  };
-  focus: {
-    max: number;
-    current: number;
-  };
-
   type: "player" | "npc" | "gm";
+  image?: string; // Útil para o avatar no combate
 
+  // Stats Vitais (Obrigatórios para o combate)
+  hp: { current: number; max: number };
+  focus: { current: number; max: number };
   armorClass: number;
+  initiative: number;
+  speed?: string; // Adicionado (NPC tem, Player precisa ter)
 
-  attributes: Record<AttributeName, Attribute>;
-  equipment?: string;
-  actions?: string;
-
-  stances: Stance[];
-  skills: Skill[];
-  spells: Spell[];
-
-  activeStanceId?: string | null;
-
+  // Ações e Recursos
   turnActions: {
     standard: boolean;
     bonus: boolean;
     reaction: boolean;
   };
-
   deathSaves: {
     successes: number;
     failures: number;
   };
+
+  // Dados de Combate
+  attributes: Record<AttributeName, Attribute>;
+  stances: Stance[];
+  activeStanceId?: string | null; // Padronizado para ID
+
+  skills: Skill[];
+  spells: Spell[]; // Padronizado (Player.grimoire vira Combatant.spells)
+
+  // Equipamento/Ações: Aqui aceitamos string (NPC) ou Detalhado (Player)
+  // Ou simplificamos tudo para string para o combate ficar leve
+  equipmentSummary?: string;
+  actionsDescription?: string;
 }
 
 export interface NpcTemplate {

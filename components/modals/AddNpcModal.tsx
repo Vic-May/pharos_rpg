@@ -185,6 +185,7 @@ export const AddNpcModal = ({
       name,
       subline,
       maxHp: parseInt(hp) || 10,
+      level: parseInt(level) || 1, // <--- ADICIONE ESTA CONVERSÃO
       //   hpFormula,
       class: npcClass,
       ancestry: ancestry,

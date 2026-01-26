@@ -1,3 +1,4 @@
+import { npcToCombatant, playerToCombatant } from "@/utils/combatantFactory";
 import React, { createContext, ReactNode, useContext, useState } from "react";
 import { CLASS_DATA } from "../data/classData"; // <--- 1. IMPORTANTE: Importar os dados
 import { CharacterClass, Combatant, NpcTemplate } from "../types/rpg";
@@ -81,49 +82,101 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // --- Lógica de Combate ---
+  // const addCombatant = (
+  //   baseName: string,
+  //   hp: number,
+  //   initiative: number,
+  //   type: "player" | "npc",
+  //   details?: Partial<Combatant> & { maxFocus?: number },
+  // ) => {
+  //   setCombatants((prev) => {
+  //     const count = prev.filter((c) => c.baseName === baseName).length;
+  //     const name = type === "npc" ? `${baseName} #${count + 1}` : baseName;
+
+  //     // DEFINIÇÃO CORRETA DO FOCO
+  //     // Tenta pegar do objeto 'focus' estruturado ou da propriedade 'maxFocus' antiga
+  //     const maxFocusVal = details?.focus?.max || details?.maxFocus || 0;
+  //     const currentFocusVal = details?.focus?.current ?? maxFocusVal;
+
+  //     const newCombatant: Combatant = {
+  //       id: Date.now().toString() + Math.random(),
+  //       name,
+  //       baseName,
+  //       initiative,
+  //       hp: { current: hp, max: hp },
+  //       // AQUI ESTAVA O ERRO: Agora usamos as variáveis calculadas acima
+  //       focus: { current: currentFocusVal, max: maxFocusVal },
+  //       type,
+  //       armorClass: details?.armorClass || 10,
+  //       attributes: details?.attributes || {
+  //         Força: { name: "Força", value: 10, modifier: 0 },
+  //         Destreza: { name: "Destreza", value: 10, modifier: 0 },
+  //         Constituição: { name: "Constituição", value: 10, modifier: 0 },
+  //         Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
+  //         Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
+  //         Carisma: { name: "Carisma", value: 10, modifier: 0 },
+  //       },
+  //       equipment: details?.equipment,
+  //       actions: details?.actions,
+  //       stances: details?.stances || [],
+  //       skills: details?.skills || [],
+  //       spells: details?.spells || [],
+  //       activeStanceId: null,
+  //       turnActions: { standard: true, bonus: true, reaction: true },
+  //       deathSaves: { successes: 0, failures: 0 }, // Inicializa death saves
+  //     };
+
+  //     return [...prev, newCombatant].sort(
+  //       (a, b) => b.initiative - a.initiative,
+  //     );
+  //   });
+  // };
   const addCombatant = (
     baseName: string,
     hp: number,
-    initiative: number,
+    init: number,
     type: "player" | "npc",
-    details?: Partial<Combatant> & { maxFocus?: number },
+    details?: any,
   ) => {
     setCombatants((prev) => {
-      const count = prev.filter((c) => c.baseName === baseName).length;
-      const name = type === "npc" ? `${baseName} #${count + 1}` : baseName;
+      let newCombatant: Combatant;
 
-      // DEFINIÇÃO CORRETA DO FOCO
-      // Tenta pegar do objeto 'focus' estruturado ou da propriedade 'maxFocus' antiga
-      const maxFocusVal = details?.focus?.max || details?.maxFocus || 0;
-      const currentFocusVal = details?.focus?.current ?? maxFocusVal;
+      if (type === "player" && details && details.stats) {
+        newCombatant = playerToCombatant(details, init);
+      } else if (type === "npc" && details && details.maxHp) {
+        const count = prev.filter((c) => c.baseName === baseName).length;
+        newCombatant = npcToCombatant(details, init, count + 1);
+      } else {
+        const maxFocusVal = details?.focus?.max || details?.maxFocus || 0;
+        const currentFocusVal = details?.focus?.current ?? maxFocusVal;
 
-      const newCombatant: Combatant = {
-        id: Date.now().toString() + Math.random(),
-        name,
-        baseName,
-        initiative,
-        hp: { current: hp, max: hp },
-        // AQUI ESTAVA O ERRO: Agora usamos as variáveis calculadas acima
-        focus: { current: currentFocusVal, max: maxFocusVal },
-        type,
-        armorClass: details?.armorClass || 10,
-        attributes: details?.attributes || {
-          Força: { name: "Força", value: 10, modifier: 0 },
-          Destreza: { name: "Destreza", value: 10, modifier: 0 },
-          Constituição: { name: "Constituição", value: 10, modifier: 0 },
-          Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
-          Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
-          Carisma: { name: "Carisma", value: 10, modifier: 0 },
-        },
-        equipment: details?.equipment,
-        actions: details?.actions,
-        stances: details?.stances || [],
-        skills: details?.skills || [],
-        spells: details?.spells || [],
-        activeStanceId: null,
-        turnActions: { standard: true, bonus: true, reaction: true },
-        deathSaves: { successes: 0, failures: 0 }, // Inicializa death saves
-      };
+        newCombatant = {
+          id: Date.now().toString() + Math.random(),
+          name: baseName, // Usa o nome passado no argumento
+          baseName: baseName,
+          type,
+          initiative: init,
+          hp: { current: hp, max: hp }, // Usa o HP passado no argumento
+          focus: { current: currentFocusVal, max: maxFocusVal },
+          armorClass: details?.armorClass || 10,
+          attributes: details?.attributes || {
+            Força: { name: "Força", value: 10, modifier: 0 },
+            Destreza: { name: "Destreza", value: 10, modifier: 0 },
+            Constituição: { name: "Constituição", value: 10, modifier: 0 },
+            Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
+            Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
+            Carisma: { name: "Carisma", value: 10, modifier: 0 },
+          },
+          stances: details?.stances || [],
+          skills: details?.skills || [],
+          spells: details?.spells || [],
+          activeStanceId: null,
+          turnActions: { standard: true, bonus: true, reaction: true },
+          deathSaves: { successes: 0, failures: 0 },
+          equipmentSummary: details?.equipment || "",
+          actionsDescription: details?.actions || "",
+        };
+      }
 
       return [...prev, newCombatant].sort(
         (a, b) => b.initiative - a.initiative,
