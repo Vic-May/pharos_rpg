@@ -85,7 +85,7 @@ export const GMCombatantCard = ({
         <View style={styles.statControl}>
           <TouchableOpacity
             onPress={() =>
-              onUpdate(item.id, "focus", Math.max(0, item.currentFocus - 1))
+              onUpdate(item.id, "focus", Math.max(0, item.focus.current - 1))
             }
           >
             <Ionicons
@@ -96,7 +96,7 @@ export const GMCombatantCard = ({
           </TouchableOpacity>
           <View style={{ alignItems: "center", minWidth: 50 }}>
             <Text style={[styles.statValue, { color: colors.focus }]}>
-              {item.currentFocus}
+              {item.focus.current}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
               FOCO
@@ -107,7 +107,7 @@ export const GMCombatantCard = ({
               onUpdate(
                 item.id,
                 "focus",
-                Math.min(item.maxFocus, item.currentFocus + 1),
+                Math.min(item.focus.max, item.focus.current + 1),
               )
             }
           >

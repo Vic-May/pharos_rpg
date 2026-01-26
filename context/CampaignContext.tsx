@@ -9,7 +9,7 @@ interface CampaignContextType {
     hp: number,
     init: number,
     type: "player" | "npc",
-    details?: Partial<Combatant>
+    details?: Partial<Combatant>,
   ) => void;
   removeCombatant: (id: string) => void;
   updateCombatant: (
@@ -17,11 +17,12 @@ interface CampaignContextType {
     field:
       | "hp"
       | "initiative"
-      | "currentFocus"
+      | "focus"
       | "activeStanceId"
       | "turnActions"
-      | "armorClass",
-    value: any
+      | "armorClass"
+      | "deathSaves",
+    value: any,
   ) => void;
   sortCombat: () => void;
   clearCombat: () => void;
@@ -46,7 +47,7 @@ interface CampaignContextType {
 }
 
 const CampaignContext = createContext<CampaignContextType>(
-  {} as CampaignContextType
+  {} as CampaignContextType,
 );
 
 export const CampaignProvider = ({ children }: { children: ReactNode }) => {
@@ -66,7 +67,7 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
       const npcLevel = npc.level || 1;
 
       const autoSkills = classInfo.skills.filter(
-        (s) => (s.level || 1) <= npcLevel
+        (s) => (s.level || 1) <= npcLevel,
       );
       const autoStances = classInfo.stances;
 
@@ -85,14 +86,16 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
     hp: number,
     initiative: number,
     type: "player" | "npc",
-    details?: Partial<Combatant>
+    details?: Partial<Combatant> & { maxFocus?: number },
   ) => {
     setCombatants((prev) => {
       const count = prev.filter((c) => c.baseName === baseName).length;
       const name = type === "npc" ? `${baseName} #${count + 1}` : baseName;
 
-      // Se for Player entrando em combate, assume-se que os dados já estão certos.
-      // Se for NPC, garantimos que skills/stances estejam preenchidas caso venham do Library.
+      // DEFINIÇÃO CORRETA DO FOCO
+      // Tenta pegar do objeto 'focus' estruturado ou da propriedade 'maxFocus' antiga
+      const maxFocusVal = details?.focus?.max || details?.maxFocus || 0;
+      const currentFocusVal = details?.focus?.current ?? maxFocusVal;
 
       const newCombatant: Combatant = {
         id: Date.now().toString() + Math.random(),
@@ -100,21 +103,30 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
         baseName,
         initiative,
         hp: { current: hp, max: hp },
+        // AQUI ESTAVA O ERRO: Agora usamos as variáveis calculadas acima
+        focus: { current: currentFocusVal, max: maxFocusVal },
         type,
         armorClass: details?.armorClass || 10,
-        maxFocus: details?.maxFocus || 0,
-        currentFocus: details?.maxFocus || 0,
-        attributes: details?.attributes,
+        attributes: details?.attributes || {
+          Força: { name: "Força", value: 10, modifier: 0 },
+          Destreza: { name: "Destreza", value: 10, modifier: 0 },
+          Constituição: { name: "Constituição", value: 10, modifier: 0 },
+          Inteligência: { name: "Inteligência", value: 10, modifier: 0 },
+          Sabedoria: { name: "Sabedoria", value: 10, modifier: 0 },
+          Carisma: { name: "Carisma", value: 10, modifier: 0 },
+        },
         equipment: details?.equipment,
         actions: details?.actions,
-        stances: details?.stances,
-        skills: details?.skills,
+        stances: details?.stances || [],
+        skills: details?.skills || [],
+        spells: details?.spells || [],
         activeStanceId: null,
-        turnActions: { standard: true, bonus: true, reaction: true }, // <--- Inicializa
+        turnActions: { standard: true, bonus: true, reaction: true },
+        deathSaves: { successes: 0, failures: 0 }, // Inicializa death saves
       };
 
       return [...prev, newCombatant].sort(
-        (a, b) => b.initiative - a.initiative
+        (a, b) => b.initiative - a.initiative,
       );
     });
   };
@@ -123,16 +135,27 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
     setCombatants((prev) =>
       prev.map((c) => {
         if (c.id !== id) return c;
+
         if (field === "hp") {
-          return { ...c, hp: { ...c.hp, current: value } };
+          // Se value for objeto {current, max}, usa. Se for número, atualiza só current.
+          if (typeof value === "number") {
+            return { ...c, hp: { ...c.hp, current: value } };
+          }
+          return { ...c, hp: value };
         }
+
         if (field === "initiative") {
           return { ...c, initiative: value };
         }
-        if (field === "currentFocus") {
-          const newFocus = Math.max(0, Math.min(value, c.maxFocus));
-          return { ...c, currentFocus: newFocus };
+
+        if (field === "focus") {
+          if (value && typeof value === "object" && "current" in value) {
+            return { ...c, focus: value };
+          }
+          const newCurrent = Math.max(0, Math.min(Number(value), c.focus.max));
+          return { ...c, focus: { ...c.focus, current: newCurrent } };
         }
+
         if (field === "activeStanceId") {
           return { ...c, activeStanceId: value };
         }
@@ -142,9 +165,12 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
         if (field === "armorClass") {
           return { ...c, armorClass: value };
         }
+        if (field === "deathSaves") {
+          return { ...c, deathSaves: value };
+        }
 
         return c;
-      })
+      }),
     );
   };
 
@@ -198,7 +224,7 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
           return merged;
         }
         return npc;
-      })
+      }),
     );
   };
 

@@ -118,9 +118,11 @@ export default function NpcScreen() {
         name: combatantName,
         armorClass: selectedNpc.armorClass,
         hp: { current: selectedNpc.maxHp, max: selectedNpc.maxHp },
-        maxFocus: selectedNpc.maxFocus,
+        focus: {
+          current: selectedNpc.maxFocus,
+          max: selectedNpc.maxFocus,
+        },
         initiative: init,
-        currentFocus: selectedNpc.maxFocus,
         attributes: selectedNpc.attributes,
         equipment: selectedNpc.equipment,
         actions: selectedNpc.actions,
@@ -132,7 +134,7 @@ export default function NpcScreen() {
 
       if (isConnected) {
         const npcPayload = {
-          id: generateSafeId(combatantName), // ID único baseado no nome com número
+          id: generateSafeId(combatantName),
           type: "npc",
           ...npcData,
         } as Combatant;

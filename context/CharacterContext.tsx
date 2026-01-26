@@ -28,14 +28,13 @@ const STORAGE_KEY = "@rpg_sheet_data_v2";
 // Dados iniciais (Padrão caso não haja nada salvo)
 const INITIAL_CHARACTER: Character = {
   name: "Novo Personagem",
-  level: 1, // <--- ADICIONE ISTO (Padrão 1)
+  level: 1,
   image: undefined,
-  class: undefined, // O usuário vai escolher no Modal
-  ancestry: undefined, // O usuário vai escolher no Modal
-  culturalOrigin: undefined, // O usuário vai escolher no Modal
-  deathSaves: { successes: 0, failures: 0 }, // <--- NOVO CAMPO
+  class: undefined,
+  ancestry: undefined,
+  culturalOrigin: undefined,
+  deathSaves: { successes: 0, failures: 0 },
 
-  // Valores padrão (Médios)
   stats: {
     hp: { current: 20, max: 20 },
     focus: { current: 10, max: 10 },
@@ -404,7 +403,6 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  // Recupera 100% da Vida e do Foco
   const performLongRest = () => {
     setCharacter((prev) => ({
       ...prev,

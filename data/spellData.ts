@@ -27,6 +27,8 @@ export const MAGIC_SCHOOLS: MagicSchoolData[] = [
         cost: 2,
         isAttack: false,
         actionType: "standard",
+        isHealing: true,
+        healFormula: "1d8",
       },
       {
         id: "agua_correnteza",

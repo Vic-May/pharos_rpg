@@ -81,7 +81,7 @@ export const ReactionOverlay = ({ combatant }: Props) => {
 
   // 2. Uso de Skill Defensiva (ex: Bastião Imóvel)
   const handleUseReactionSkill = (skill: Skill) => {
-    if (combatant.currentFocus < skill.cost) {
+    if (combatant.focus.current < skill.cost) {
       showAlert("Sem Foco", "Foco insuficiente para esta reação.");
       return;
     }
@@ -102,8 +102,8 @@ export const ReactionOverlay = ({ combatant }: Props) => {
     // Atualiza Foco Local
     updateCombatant(
       combatant.id,
-      "currentFocus",
-      combatant.currentFocus - skill.cost,
+      "focus",
+      combatant.focus.current - skill.cost,
     );
     consumeReaction();
 

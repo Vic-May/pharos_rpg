@@ -94,6 +94,9 @@ export interface Spell {
   isAttack: boolean; // Abre modal de ataque?
   damageFormula?: string; // Ex: "2d6"
   actionType: "standard" | "bonus" | "reaction";
+
+  isHealing?: boolean; // Identifica se é magia de cura
+  healFormula?: string; // Ex: "1d8", "2d4+2"
 }
 
 interface Ancestry {
@@ -193,18 +196,22 @@ export interface Combatant {
     current: number;
     max: number;
   };
+  focus: {
+    max: number;
+    current: number;
+  };
+
   type: "player" | "npc" | "gm";
 
   armorClass: number;
-  maxFocus: number;
-  currentFocus: number;
+
   attributes: Record<AttributeName, Attribute>;
   equipment?: string;
   actions?: string;
 
   stances: Stance[];
   skills: Skill[];
-  spells: Spell[]; // <--- Nova lista dedicada
+  spells: Spell[];
 
   activeStanceId?: string | null;
 
@@ -212,6 +219,11 @@ export interface Combatant {
     standard: boolean;
     bonus: boolean;
     reaction: boolean;
+  };
+
+  deathSaves: {
+    successes: number;
+    failures: number;
   };
 }
 
@@ -271,5 +283,3 @@ export interface ResolveActionPayload {
   damageAmount: number;
   healingAmount: number;
 }
-
-// Adicione ao seu arquivo de tipos existente
