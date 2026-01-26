@@ -1,8 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
-  Modal,
-  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -14,12 +12,11 @@ import {
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
-import { MAGIC_SCHOOLS } from "@/data/spellData";
 import { Spell } from "@/types/rpg";
 import { getCircleTheme } from "@/utils/spellUtils";
 
 // Componentes
-import { LearnSpellItem } from "@/components/rpg/LearnSpellItem";
+import { SpellSelectorModal } from "@/components/modals/SpellSelectorModal";
 import { SpellCard } from "@/components/rpg/SpellCard";
 import { StatBar } from "@/components/ui/StatBar";
 
@@ -156,44 +153,12 @@ export default function GrimoireScreen() {
       />
 
       {/* --- MODAL DE APRENDER MAGIAS --- */}
-      <Modal
+      <SpellSelectorModal
         visible={learnModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setLearnModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Biblioteca Arcana</Text>
-            <TouchableOpacity onPress={() => setLearnModalVisible(false)}>
-              <Text style={styles.closeText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {MAGIC_SCHOOLS.map((school) => (
-              <View key={school.id} style={styles.schoolGroup}>
-                <Text style={styles.schoolTitle}>{school.name}</Text>
-                <Text style={styles.schoolQuote}>{school.quote}</Text>
-
-                {school.spells.map((spell) => {
-                  const isLearned = character.grimoire?.some(
-                    (s) => s.id === spell.id,
-                  );
-                  return (
-                    <LearnSpellItem
-                      key={spell.id}
-                      spell={spell}
-                      isLearned={!!isLearned}
-                      onLearn={() => handleLearnSpell(spell)}
-                    />
-                  );
-                })}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setLearnModalVisible(false)}
+        onSelect={addSpell}
+        learnedSpells={character.spells}
+      />
     </View>
   );
 }

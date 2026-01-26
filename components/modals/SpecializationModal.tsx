@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Props {
   visible: boolean;
@@ -84,7 +85,7 @@ export const SpecializationModal = ({ visible, onClose }: Props) => {
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>Especialização de Classe</Text>
           <Text style={styles.subtitle}>
@@ -127,7 +128,7 @@ export const SpecializationModal = ({ visible, onClose }: Props) => {
             <Text style={styles.closeText}>Fechar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

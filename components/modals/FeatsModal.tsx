@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Props {
   visible: boolean;
@@ -29,8 +30,8 @@ export const FeatsModal = ({ visible, onClose }: Props) => {
   const [selectorVisible, setSelectorVisible] = useState(false);
 
   // Calcula slots (Mantido igual)
-  const FEAT_LEVELS = [3, 7, 10, 13];
   const slots = useMemo(() => {
+    const FEAT_LEVELS = [3, 7, 10, 13];
     return FEAT_LEVELS.map((level) => ({
       level,
       unlocked: (character.level || 1) >= level,
@@ -162,7 +163,7 @@ export const FeatsModal = ({ visible, onClose }: Props) => {
   if (selectorVisible) {
     return (
       <Modal visible={true} animationType="slide">
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => setSelectorVisible(false)}
@@ -191,7 +192,7 @@ export const FeatsModal = ({ visible, onClose }: Props) => {
               </TouchableOpacity>
             )}
           />
-        </View>
+        </SafeAreaView>
       </Modal>
     );
   }
@@ -202,7 +203,7 @@ export const FeatsModal = ({ visible, onClose }: Props) => {
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backBtn}>
             <Ionicons name="close" size={24} color={colors.text} />
@@ -290,7 +291,7 @@ export const FeatsModal = ({ visible, onClose }: Props) => {
             </View>
           ))}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
