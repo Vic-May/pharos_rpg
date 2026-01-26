@@ -289,6 +289,7 @@ const getStyles = (colors: any) =>
       fontSize: 18,
       fontWeight: "bold",
       color: colors.text,
+      alignItems: "baseline",
     },
     closeBtn: {
       padding: 4,

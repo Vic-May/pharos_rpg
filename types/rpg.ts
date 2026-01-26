@@ -111,6 +111,27 @@ interface Origin {
   languages: string[];
 }
 
+export interface Specialization {
+  id: string;
+  name: string;
+  classRequired: CharacterClass;
+  description: string;
+  // Para o Corsário, a especialização altera as posturas
+  newStances?: Stance[];
+  proficiencyChanges?: string; // Texto descrevendo a mudança
+}
+
+export type FeatCategory = "Geral" | "Marcial" | "Social" | "Mágico";
+
+export interface Feat {
+  id: string;
+  name: string;
+  category: FeatCategory;
+  objective: string; // O que o jogador tem que fazer
+  benefit: string; // A recompensa mecânica
+  prerequisite?: string;
+}
+
 export interface Character {
   name: string;
   level: number;
@@ -159,6 +180,8 @@ export interface Character {
     bonus: boolean;
     reaction: boolean;
   };
+  specialization?: Specialization | null;
+  feats: Feat[]; // Façanhas já desbloqueadas
 }
 
 export interface Combatant {
@@ -248,3 +271,5 @@ export interface ResolveActionPayload {
   damageAmount: number;
   healingAmount: number;
 }
+
+// Adicione ao seu arquivo de tipos existente

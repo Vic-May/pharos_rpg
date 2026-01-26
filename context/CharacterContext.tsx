@@ -14,9 +14,11 @@ import {
   Character,
   CharacterClass,
   EquipmentItem,
+  Feat,
   Item,
   ItemType,
   MAGIC_CLASSES,
+  Specialization,
   Spell,
 } from "../types/rpg";
 
@@ -96,6 +98,8 @@ const INITIAL_CHARACTER: Character = {
     bonus: true,
     reaction: true,
   },
+  spells: [],
+  feats: [],
 };
 
 interface CharacterContextType {
@@ -110,7 +114,7 @@ interface CharacterContextType {
   updateNameAndClass: (name: string, className?: CharacterClass) => void;
   updateEquipment: (
     slot: "meleeWeapon" | "rangedWeapon" | "armor" | "shield",
-    item: EquipmentItem
+    item: EquipmentItem,
   ) => void;
   updateAncestry: (ancestryId: string) => void;
   updateOrigin: (originId: string) => void;
@@ -123,7 +127,7 @@ interface CharacterContextType {
     name: string,
     type: ItemType,
     quantity: number,
-    weight: number
+    weight: number,
   ) => void;
   removeItem: (itemId: string) => void;
   updateItemQuantity: (itemId: string, change: number) => void;
@@ -141,10 +145,13 @@ interface CharacterContextType {
   };
   toggleAction: (type: "standard" | "bonus" | "reaction") => void;
   endTurn: () => void;
+  applySpecialization: (spec: Specialization) => void;
+  addFeat: (feat: Feat) => void;
+  removeFeat: (featId: string) => void;
 }
 
 const CharacterContext = createContext<CharacterContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export const CharacterProvider = ({ children }: { children: ReactNode }) => {
@@ -312,7 +319,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
 
   const updateEquipment = (
     slot: "meleeWeapon" | "rangedWeapon" | "armor" | "shield",
-    item: EquipmentItem
+    item: EquipmentItem,
   ) => {
     setCharacter((prev) => ({
       ...prev,
@@ -329,7 +336,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
 
     // Acha a primeira origem compatível com essa ancestralidade para ser o padrão
     const defaultOrigin = CULTURAL_ORIGINS.find(
-      (o) => o.ancestryId === ancestryId
+      (o) => o.ancestryId === ancestryId,
     );
 
     setCharacter((prev) => ({
@@ -435,7 +442,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     name: string,
     type: ItemType,
     quantity: number,
-    weight: number
+    weight: number,
   ) => {
     const newItem: Item = {
       id: Date.now().toString(), // Gera um ID único simples
@@ -511,7 +518,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
         const newSkillsToAdd = allClassSkills.filter(
           (refSkill) =>
             (refSkill.level || 1) <= validLevel && // Disponível no nível atual ou inferior
-            !prev.skills.some((s) => s.id === refSkill.id) // Evita duplicatas (já aprendida)
+            !prev.skills.some((s) => s.id === refSkill.id), // Evita duplicatas (já aprendida)
         );
 
         // 3. Se tiver novidade, adiciona à lista
@@ -522,7 +529,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
           // Opcional: Avisar no console
           console.log(
             `Subiu para nível ${validLevel}. Novas skills:`,
-            newSkillsToAdd.map((s) => s.name)
+            newSkillsToAdd.map((s) => s.name),
           );
         }
       }
@@ -555,7 +562,7 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     setCharacter((prev) => ({
       ...prev,
       backpack: prev.backpack.map((item) =>
-        item.id === itemId ? { ...item, ...data } : item
+        item.id === itemId ? { ...item, ...data } : item,
       ),
     }));
   };
@@ -626,11 +633,11 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
       (total, item) => {
         return total + (item.weight || 0);
       },
-      0
+      0,
     );
 
     const currentLoad = parseFloat(
-      (backpackWeight + equipmentWeight).toFixed(1)
+      (backpackWeight + equipmentWeight).toFixed(1),
     ); // Arredonda para 1 casa decimal
 
     // C. Calcula Carga Máxima (5x Força)
@@ -676,6 +683,50 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  const applySpecialization = (spec: Specialization) => {
+    let updatedCharacter = { ...character, specialization: spec };
+
+    if (spec.classRequired === "Corsário" && spec.newStances) {
+      updatedCharacter.stances = spec.newStances;
+      updatedCharacter.currentStanceIndex = -1;
+      // updatedCharacter.activeStanceId = null;
+    }
+
+    // Garante que feats exista no objeto salvo, mesmo que vazio
+    if (!updatedCharacter.feats) {
+      updatedCharacter.feats = [];
+    }
+
+    setCharacter(updatedCharacter);
+    // saveCharacter(updatedCharacter);
+  };
+
+  const addFeat = (feat: Feat) => {
+    // PROTEÇÃO: Usa ?. para não quebrar se feats for undefined
+    // E usa ?? [] para garantir que seja um array na verificação
+    if (character.feats?.some((f) => f.id === feat.id)) return;
+
+    const updatedCharacter = {
+      ...character,
+      // Se character.feats for undefined, usa [] como base
+      feats: [...(character.feats || []), feat],
+    };
+
+    setCharacter(updatedCharacter);
+    // saveCharacter(updatedCharacter); // Se você tiver função de salvar persistente
+  };
+
+  const removeFeat = (featId: string) => {
+    const updatedCharacter = {
+      ...character,
+      // Filtra mantendo apenas os que NÃO são o ID passado
+      feats: character.feats?.filter((f) => f.id !== featId) || [],
+    };
+
+    setCharacter(updatedCharacter);
+    // saveCharacter(updatedCharacter); // Se você usa persistência
+  };
+
   return (
     <CharacterContext.Provider
       value={{
@@ -709,6 +760,9 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
         getLoadMetrics,
         toggleAction,
         endTurn,
+        applySpecialization,
+        addFeat,
+        removeFeat,
       }}
     >
       {children}

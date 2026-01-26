@@ -17,7 +17,7 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
 import { getActionColor, getActionKey } from "@/utils/rpgUtils";
 import { AttackModal } from "../modals/AttackModal";
-import { SpectatorCard } from "./SpectorCard";
+import { SpectatorCard } from "./SpectatorCard";
 
 // Helper de Cores para as Skills
 
