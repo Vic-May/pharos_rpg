@@ -231,9 +231,10 @@ export interface Combatant {
 export interface NpcTemplate {
   id: string;
   name: string;
+  image?: string;
 
   level: number;
-  class: CharacterClass;
+  class: CharacterClass | string;
   ancestry: string;
 
   maxHp: number;

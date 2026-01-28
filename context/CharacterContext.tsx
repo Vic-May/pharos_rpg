@@ -523,12 +523,6 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
         if (newSkillsToAdd.length > 0) {
           // Mantém as antigas e adiciona as novas no final
           updatedSkills = [...prev.skills, ...newSkillsToAdd];
-
-          // Opcional: Avisar no console
-          console.log(
-            `Subiu para nível ${validLevel}. Novas skills:`,
-            newSkillsToAdd.map((s) => s.name),
-          );
         }
       }
 
@@ -564,35 +558,6 @@ export const CharacterProvider = ({ children }: { children: ReactNode }) => {
       ),
     }));
   };
-
-  // useEffect(() => {
-  //   const debugAllData = async () => {
-  //     try {
-  //       // 1. Pega todas as chaves existentes no banco
-  //       const keys = await AsyncStorage.getAllKeys();
-  //       console.log("🔑 CHAVES ENCONTRADAS:", keys);
-
-  //       // 2. Pega os valores de todas essas chaves
-  //       const result = await AsyncStorage.multiGet(keys);
-
-  //       console.log("📦 CONTEÚDO DO STORAGE:");
-  //       result.forEach(([key, value]) => {
-  //         console.log(`\n👉 KEY: ${key}`);
-  //         // Tenta mostrar bonitinho se for JSON, senão mostra texto puro
-  //         try {
-  //           console.log("📄 VALOR:", JSON.parse(value || "null"));
-  //         } catch {
-  //           console.log("📄 VALOR (Texto):", value);
-  //         }
-  //       });
-  //       console.log("\n-----------------------------");
-  //     } catch (error) {
-  //       console.error("Erro no debug:", error);
-  //     }
-  //   };
-
-  //   debugAllData();
-  // }, []);
 
   const importCharacter = (importedData: any) => {
     setCharacter((prev) => {

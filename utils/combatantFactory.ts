@@ -35,14 +35,14 @@ export const playerToCombatant = (
     .join(", ");
 
   return {
-    id: char.name, // Player geralmente usa o próprio nome como ID único ou char.id
+    id: generateSafeId(char.name), // Player geralmente usa o próprio nome como ID único ou char.id
     name: char.name,
     baseName: char.name,
     type: "player",
     image: char.image,
 
     // Stats
-    hp: { ...char.stats.hp }, // Copia para não alterar o original por referência
+    hp: { ...char.stats.hp },
     focus: { ...char.stats.focus },
     armorClass: playerArmor(char),
     initiative: initiativeRoll,
@@ -75,8 +75,9 @@ export const npcToCombatant = (
   const uniqueName = `${npc.name} #${instanceId}`;
 
   return {
-    id: generateSafeId(uniqueName), // Gera ID único para o combate
+    id: generateSafeId(uniqueName),
     name: uniqueName,
+    image: npc.image,
     baseName: npc.name,
     type: "npc",
 

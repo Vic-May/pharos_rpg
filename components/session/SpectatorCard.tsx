@@ -1,6 +1,6 @@
 import { Combatant } from "@/types/rpg";
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
 interface SpectatorCardProps {
   item: Combatant;
@@ -35,6 +35,23 @@ export const SpectatorCard = ({
         isDead && { opacity: 0.6 },
       ]}
     >
+      {/* IMAGEM DO COMBATENTE */}
+      <View style={styles.avatarContainer}>
+        {item.image ? (
+          <Image
+            source={{ uri: item.image }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        ) : (
+          // Fallback se não tiver imagem: Ícone ou Primeira Letra
+          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+              {item.name.charAt(0)}
+            </Text>
+          </View>
+        )}
+      </View>
       {/* Badge de Iniciativa */}
       <View
         style={[
@@ -151,5 +168,18 @@ const getStyles = (colors: any) =>
     miniBarFill: {
       height: "100%",
       borderRadius: 3,
+    },
+    avatarContainer: {
+      marginRight: 12,
+    },
+    avatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25, // Redondo
+      backgroundColor: "#333",
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: "#444", // Borda padrão
     },
   });

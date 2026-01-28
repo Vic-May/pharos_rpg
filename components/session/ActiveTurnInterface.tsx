@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAlert } from "@/context/AlertContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -692,117 +693,119 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
       <View style={{ paddingHorizontal: 16 }}>
         {/* --- SELETOR DE POSTURA --- */}
-        <View style={styles.stanceSelectorContainer}>
-          <Text style={styles.sectionLabel}>Postura Atual</Text>
-          <View style={styles.stanceToggleGroup}>
-            <TouchableOpacity
-              style={[
-                styles.stanceBtn,
-                isNeutral && styles.stanceBtnNeutralActive,
-              ]}
-              onPress={() => handleStanceChange(-1)}
-            >
-              <Text
-                style={[
-                  styles.stanceBtnText,
-                  isNeutral && styles.stanceBtnTextActive,
-                ]}
-              >
-                Neutra
-              </Text>
-            </TouchableOpacity>
+        {/* LÓGICA: Só exibe o Seletor se existirem posturas cadastradas */}
+        {combatant.stances && combatant.stances.length > 0 ? (
+          <View style={styles.stanceSelectorContainer}>
+            <Text style={styles.sectionLabel}>Postura Atual</Text>
 
-            <TouchableOpacity
-              style={[
-                styles.stanceBtn,
-                currentStanceIdx === 0 && styles.stanceBtnP1Active,
-                currentStanceIdx !== 0 &&
-                  !turnActions.bonus && { opacity: 0.5 },
-              ]}
-              onPress={() => handleStanceChange(0)}
-              disabled={currentStanceIdx !== 0 && !turnActions.bonus}
-            >
-              <Text
+            <View style={styles.stanceToggleGroup}>
+              {/* Botão Neutra (Sempre existe se houver posturas para alternar) */}
+              <TouchableOpacity
                 style={[
-                  styles.stanceBtnText,
-                  currentStanceIdx === 0 && { color: "#fff" },
+                  styles.stanceBtn,
+                  isNeutral && styles.stanceBtnNeutralActive,
                 ]}
+                onPress={() => handleStanceChange(-1)}
               >
-                I
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.stanceBtnText,
+                    isNeutral && styles.stanceBtnTextActive,
+                  ]}
+                >
+                  Neutra
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
+              {/* Botões Dinâmicos (I, II, III...) baseados no array */}
+              {combatant.stances.map((stance: any, index: number) => {
+                const isThisStanceActive = currentStanceIdx === index;
+                // Só pode ativar se for a vez do turno e tiver ação bônus (ou regra da casa)
+                const canSwitch = isThisStanceActive || turnActions.bonus;
+
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.stanceBtn,
+                      // Estilo condicional para I (idx 0) e II (idx 1)
+                      isThisStanceActive &&
+                        (index === 0
+                          ? styles.stanceBtnP1Active
+                          : styles.stanceBtnP2Active),
+                      !isThisStanceActive && !canSwitch && { opacity: 0.5 },
+                    ]}
+                    onPress={() => handleStanceChange(index)}
+                    disabled={!isThisStanceActive && !canSwitch}
+                  >
+                    <Text
+                      style={[
+                        styles.stanceBtnText,
+                        isThisStanceActive && { color: "#fff" },
+                      ]}
+                    >
+                      {index === 0 ? "I" : index === 1 ? "II" : "III"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Card de Detalhes da Postura */}
+            <View
               style={[
-                styles.stanceBtn,
-                currentStanceIdx === 1 && styles.stanceBtnP2Active,
-                currentStanceIdx !== 1 &&
-                  !turnActions.bonus && { opacity: 0.5 },
+                styles.stanceCard,
+                isNeutral
+                  ? styles.stanceNeutralBg
+                  : currentStanceIdx === 0
+                    ? styles.stanceOneBg
+                    : styles.stanceTwoBg,
               ]}
-              onPress={() => handleStanceChange(1)}
-              disabled={currentStanceIdx !== 1 && !turnActions.bonus}
             >
-              <Text
-                style={[
-                  styles.stanceBtnText,
-                  currentStanceIdx === 1 && { color: "#fff" },
-                ]}
-              >
-                II
+              <Text style={styles.activeStanceName}>
+                {isNeutral ? "Postura Neutra" : activeStance?.name}
               </Text>
-            </TouchableOpacity>
-          </View>
 
-          <View
-            style={[
-              styles.stanceCard,
-              isNeutral
-                ? styles.stanceNeutralBg
-                : currentStanceIdx === 0
-                  ? styles.stanceOneBg
-                  : styles.stanceTwoBg,
-            ]}
-          >
-            <Text style={styles.activeStanceName}>
-              {isNeutral ? "Postura Neutra" : activeStance?.name}
-            </Text>
-            <View style={styles.divider} />
-            {isNeutral ? (
-              <Text style={styles.neutralText}>
-                Você não está focado em nenhuma técnica específica.
-              </Text>
-            ) : (
-              <View style={styles.stanceDetails}>
-                <InfoRow
-                  label="Benefício"
-                  text={activeStance?.benefit}
-                  color={colors.success}
-                  styles={styles}
-                />
-                <InfoRow
-                  label="Restrição"
-                  text={activeStance?.restriction}
-                  color={colors.error}
-                  styles={styles}
-                />
-                <InfoRow
-                  label="Manobra"
-                  text={activeStance?.maneuver}
-                  color={colors.focus}
-                  styles={styles}
-                />
-                {activeStance?.recovery && (
+              <View style={styles.divider} />
+
+              {isNeutral ? (
+                <Text style={styles.neutralText}>
+                  Combatendo sem foco em técnicas específicas.
+                </Text>
+              ) : (
+                <View style={styles.stanceDetails}>
                   <InfoRow
-                    label="Recuperação"
-                    text={activeStance.recovery}
-                    color={colors.primary}
+                    label="Benefício"
+                    text={activeStance?.benefit}
+                    color={colors.success}
                     styles={styles}
                   />
-                )}
-              </View>
-            )}
+                  <InfoRow
+                    label="Restrição"
+                    text={activeStance?.restriction}
+                    color={colors.error}
+                    styles={styles}
+                  />
+                  <InfoRow
+                    label="Manobra"
+                    text={activeStance?.maneuver}
+                    color={colors.focus}
+                    styles={styles}
+                  />
+                  {activeStance?.recovery && (
+                    <InfoRow
+                      label="Recuperação"
+                      text={activeStance.recovery}
+                      color={colors.primary}
+                      styles={styles}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
           </View>
-        </View>
+        ) : // (OPCIONAL) Se não tiver posturas, não renderiza nada ou renderiza algo simples
+        null}
 
         {/* --- RASTREADOR DE AÇÕES --- */}
         <View style={styles.combatSection}>
@@ -883,9 +886,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             </View>
 
             {combatant.spells.map((spell) => {
-              if (spell.name === "Lavar Feridas") {
-                console.log("DADOS DA MAGIA:", JSON.stringify(spell, null, 2));
-              }
               const actionKey = getActionKey(spell.actionType || "standard");
               const hasAction = actionKey ? turnActions[actionKey] : true;
               const hasFocus = combatant.focus.current >= spell.cost;
@@ -942,42 +942,45 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         )}
 
         {/* --- HABILIDADES FÍSICAS --- */}
-        <View style={styles.combatSection}>
-          <Text style={styles.sectionHeader}>Habilidades</Text>
-          {combatant.skills?.map((skill: any) => {
-            const actionKey = getActionKey(skill.actionType || skill.action);
-            const isAvailable = actionKey ? turnActions[actionKey] : true;
-            const hasFocus = combatant.focus.current >= skill.cost;
-            const canUse = isAvailable && hasFocus;
+        {/* LÓGICA: Só exibe a seção se houver habilidades na lista */}
+        {combatant.skills && combatant.skills.length > 0 ? (
+          <View style={styles.combatSection}>
+            <Text style={styles.sectionHeader}>Habilidades</Text>
+            {combatant.skills.map((skill: any) => {
+              const actionKey = getActionKey(skill.actionType || skill.action);
+              const isAvailable = actionKey ? turnActions[actionKey] : true;
+              const hasFocus = combatant.focus.current >= skill.cost;
+              const canUse = isAvailable && hasFocus;
 
-            return (
-              <TouchableOpacity
-                key={skill.id || Math.random()}
-                style={[styles.skillRow, !canUse && { opacity: 0.5 }]}
-                disabled={!canUse}
-                onPress={() => handleUseSkill(skill)}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.skillName}>{skill.name}</Text>
-                  <Text
-                    style={[
-                      styles.skillType,
-                      { color: getActionColor(skill.actionType, colors) },
-                    ]}
-                  >
-                    {skill.actionType}
-                  </Text>
-                  <Text style={styles.detailText}>{skill.description}</Text>
-                </View>
-                <View style={styles.skillCost}>
-                  <Text style={{ fontWeight: "bold", color: colors.text }}>
-                    {skill.cost} Foco
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              return (
+                <TouchableOpacity
+                  key={skill.id || Math.random()}
+                  style={[styles.skillRow, !canUse && { opacity: 0.5 }]}
+                  disabled={!canUse}
+                  onPress={() => handleUseSkill(skill)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.skillName}>{skill.name}</Text>
+                    <Text
+                      style={[
+                        styles.skillType,
+                        { color: getActionColor(skill.actionType, colors) },
+                      ]}
+                    >
+                      {skill.actionType}
+                    </Text>
+                    <Text style={styles.detailText}>{skill.description}</Text>
+                  </View>
+                  <View style={styles.skillCost}>
+                    <Text style={{ fontWeight: "bold", color: colors.text }}>
+                      {skill.cost} Foco
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
 
         <TouchableOpacity style={styles.endTurnBtnBig} onPress={handleEndTurn}>
           <Text style={styles.endTurnText}>ENCERRAR MEU TURNO</Text>
@@ -1026,7 +1029,9 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
           ]}
         >
           {/* Header do Modal */}
-          <View style={[styles.modalHeader, { borderColor: colors.border }]}>
+          <SafeAreaView
+            style={[styles.modalHeader, { borderColor: colors.border }]}
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               Situação do Combate
             </Text>
@@ -1035,7 +1040,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
                 Voltar para Ação
               </Text>
             </TouchableOpacity>
-          </View>
+          </SafeAreaView>
 
           {/* Lista Reutilizada */}
           <FlatList
@@ -1063,6 +1068,7 @@ const InfoRow = ({ label, text, color, styles }: any) => (
     <Text style={styles.infoText}>{text}</Text>
   </View>
 );
+
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
