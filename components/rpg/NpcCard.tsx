@@ -9,9 +9,16 @@ interface NpcCardProps {
   onEdit: (item: NpcTemplate) => void;
   onDelete: (id: string) => void;
   onCombat: (item: NpcTemplate) => void;
+  onDuplicate?: (npc: NpcTemplate) => void;
 }
 
-export const NpcCard = ({ item, onEdit, onDelete, onCombat }: NpcCardProps) => {
+export const NpcCard = ({
+  item,
+  onEdit,
+  onDelete,
+  onCombat,
+  onDuplicate,
+}: NpcCardProps) => {
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const [expanded, setExpanded] = useState(false);
@@ -154,6 +161,16 @@ export const NpcCard = ({ item, onEdit, onDelete, onCombat }: NpcCardProps) => {
             >
               <Ionicons name="pencil" size={18} color="#fff" />
             </TouchableOpacity>
+
+            {onDuplicate && (
+              <TouchableOpacity
+                onPress={() => onDuplicate(item)}
+                style={[styles.iconBtn, { backgroundColor: "#fb8c00" }]} // Laranja para diferenciar
+              >
+                <Ionicons name="copy-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               onPress={() => onDelete(item.id)}
               style={[styles.iconBtn, { backgroundColor: colors.inputBg }]}

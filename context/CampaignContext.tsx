@@ -1,5 +1,12 @@
 import { npcToCombatant, playerToCombatant } from "@/utils/combatantFactory";
-import React, { createContext, ReactNode, useContext, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { CLASS_DATA } from "../data/classData"; // <--- 1. IMPORTANTE: Importar os dados
 import { CharacterClass, Combatant, NpcTemplate } from "../types/rpg";
 
@@ -57,6 +64,42 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
   const [diceHistory, setDiceHistory] = useState<string[]>([]);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // --- 2. CARREGAR DADOS AO INICIAR ---
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const savedNpcs = await AsyncStorage.getItem("@rpg_npc_library");
+        if (savedNpcs) {
+          setNpcLibrary(JSON.parse(savedNpcs));
+        }
+      } catch (error) {
+        console.error("Erro ao carregar NPCs:", error);
+      } finally {
+        setIsLoaded(true); // Marca que o carregamento terminou
+      }
+    };
+    loadData();
+  }, []);
+
+  // --- 3. SALVAR AUTOMATICAMENTE QUANDO MUDAR ---
+  useEffect(() => {
+    const saveData = async () => {
+      if (isLoaded) {
+        // Só salva se já tiver carregado os dados iniciais
+        try {
+          await AsyncStorage.setItem(
+            "@rpg_npc_library",
+            JSON.stringify(npcLibrary),
+          );
+        } catch (error) {
+          console.error("Erro ao salvar NPCs:", error);
+        }
+      }
+    };
+    saveData();
+  }, [npcLibrary, isLoaded]);
 
   const addLog = (message: string) => {
     setLogs((prev) => [...prev, message].slice(-50)); // Mantém apenas os últimos 50

@@ -54,7 +54,7 @@ export default function NpcScreen() {
   };
 
   const handleSaveNpc = (data: Partial<NpcTemplate>) => {
-    if (editingNpc) {
+    if (editingNpc && editingNpc.id) {
       updateNpcInLibrary(editingNpc.id, data as NpcTemplate);
     } else {
       saveNpcToLibrary(data as Omit<NpcTemplate, "id">);
@@ -65,6 +65,18 @@ export default function NpcScreen() {
     setSelectedNpc(npc);
     setQuantity("1");
     setQtyModalVisible(true);
+  };
+
+  const handleDuplicate = (npc: NpcTemplate) => {
+    // Cria uma cópia profunda para evitar referência
+    const copy: NpcTemplate = {
+      ...npc,
+      id: "", // Limpa o ID para ser tratado como novo ao salvar
+      name: `${npc.name} (Cópia)`,
+    };
+
+    setEditingNpc(copy); // Define como "editando" (mas sem ID, então salvará como novo)
+    setModalVisible(true);
   };
 
   const confirmAddToCombat = () => {
@@ -141,6 +153,7 @@ export default function NpcScreen() {
             onEdit={handleEdit}
             onDelete={deleteNpcFromLibrary}
             onCombat={openCombatModal}
+            onDuplicate={handleDuplicate}
           />
         )}
         ListEmptyComponent={

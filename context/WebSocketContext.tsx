@@ -1,4 +1,4 @@
-import { playerToCombatant } from "@/utils/rpgUtils";
+import { playerToCombatant } from "@/utils/combatantFactory";
 import { generateSafeId } from "@/utils/stringUtils";
 import React, { createContext, useContext, useRef, useState } from "react";
 import { Alert } from "react-native";
@@ -168,7 +168,7 @@ export const WebSocketProvider = ({
     const charId = generateSafeId(character.name) || `char_${Date.now()}`;
 
     // 1. Prepara os dados AGORA (snapshot atual)
-    const combatantData = playerToCombatant(character, charId, initiative);
+    const combatantData = playerToCombatant(character, initiative);
 
     // 2. Passa tudo para a conexão
     connectToRoute(ip, sessionId, charId, combatantData);
