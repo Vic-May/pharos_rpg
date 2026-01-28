@@ -3,10 +3,13 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -17,13 +20,12 @@ import { useWebSocket } from "@/context/WebSocketContext";
 import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
 import { getActionColor, getActionKey } from "@/utils/rpgUtils";
 import { AttackModal } from "../modals/AttackModal";
-import { SpectatorCard } from "./SpectorCard";
-
-// Helper de Cores para as Skills
+import { HealModal } from "../modals/HealModal";
+import { SpectatorCard } from "./SpectatorCard";
 
 interface Props {
   combatant: Combatant;
-  isGm?: boolean; // Flag para saber se é o mestre controlando
+  isGm?: boolean;
 }
 
 export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
@@ -35,14 +37,124 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
   const [attackModalOpen, setAttackModalOpen] = useState(false);
   const [battlefieldVisible, setBattlefieldVisible] = useState(false);
-
-  // Estado para configurar o modal quando for magia
   const [spellAttackConfig, setSpellAttackConfig] = useState<{
     bonus: string;
     damage: string;
     name: string;
     cost: number;
   } | null>(null);
+
+  const [healModalOpen, setHealModalOpen] = useState(false);
+  const [spellHealConfig, setSpellHealConfig] = useState<{
+    formula: string;
+    name: string;
+    cost: number;
+    modifier: number;
+  } | null>(null);
+
+  const isDying = combatant.hp.current <= 0;
+  const [manualDeathInput, setManualDeathInput] = useState("");
+  const successes = combatant.deathSaves?.successes || 0;
+  const failures = combatant.deathSaves?.failures || 0;
+
+  const updateDeathSaves = (type: "success" | "failure", value: number) => {
+    const newSaves = {
+      successes: type === "success" ? value : successes,
+      failures: type === "failure" ? value : failures,
+    };
+
+    updateCombatant(combatant.id, "deathSaves", newSaves);
+
+    // Opcional: Enviar socket se quiser sincronizar em tempo real as bolinhas
+    // sendMessage("UPDATE_COMBATANT", { ... });
+  };
+
+  const handleDeathSave = (manualRoll?: number) => {
+    let d20: number;
+
+    if (manualRoll !== undefined) {
+      if (isNaN(manualRoll) || manualRoll < 1 || manualRoll > 20) {
+        showAlert("Valor Inválido", "Insira um valor entre 1 e 20.");
+        return;
+      }
+      d20 = manualRoll;
+    } else {
+      d20 = Math.floor(Math.random() * 20) + 1;
+    }
+
+    const currentSuccesses = combatant?.deathSaves?.successes || 0;
+    const currentFailures = combatant?.deathSaves?.failures || 0;
+
+    let newSuccesses = currentSuccesses;
+    let newFailures = currentFailures;
+    let hpUpdate = 0;
+    let died = false;
+    let resultText = "";
+
+    if (d20 === 20) {
+      hpUpdate = 1;
+      newSuccesses = 0;
+      newFailures = 0;
+      resultText = "20 NATURAL! Você renasce com 1 PV!";
+    } else if (d20 === 1) {
+      newFailures += 2;
+      resultText = "FALHA CRÍTICA! (2 Falhas)";
+    } else if (d20 >= 10) {
+      newSuccesses += 1;
+      resultText = "SUCESSO.";
+    } else {
+      newFailures += 1;
+      resultText = "FALHA.";
+    }
+
+    if (newSuccesses >= 3 && hpUpdate === 0) {
+      newSuccesses = 0;
+      newFailures = 0;
+      hpUpdate = 1;
+      resultText += "\n\nESTABILIZOU! (Você acorda com 1 PV)";
+    } else if (newFailures >= 3) {
+      died = true;
+      resultText += "\n\nSEU PERSONAGEM MORREU.";
+    }
+
+    if (hpUpdate > 0) {
+      updateCombatant(combatant.id, "hp", {
+        ...combatant.hp,
+        current: hpUpdate,
+      });
+      updateCombatant(combatant.id, "deathSaves", {
+        successes: 0,
+        failures: 0,
+      });
+    } else {
+      updateCombatant(combatant.id, "deathSaves", {
+        successes: Math.min(3, newSuccesses),
+        failures: Math.min(3, newFailures),
+      });
+    }
+
+    if (turnActions.standard) {
+      updateCombatant(combatant.id, "turnActions", {
+        ...turnActions,
+        standard: false,
+      });
+    }
+
+    const payload = {
+      combatantId: combatant.id,
+      rollValue: d20,
+    };
+
+    sendMessage("ROLL_DEATH_SAVE", payload);
+
+    showAlert(
+      hpUpdate > 0 ? "Salvo!" : died ? "Morte" : "Teste de Morte",
+      `Rolagem: ${d20}\n${resultText}`,
+    );
+
+    handleEndTurn();
+    setManualDeathInput("");
+  };
 
   // Garante que actions existe com valores padrão
   const turnActions = combatant.turnActions || {
@@ -52,7 +164,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   };
 
   // --- LÓGICA DE DADOS (Visual) ---
-  console.log("COMBATENTE: ", combatant);
   const stances = combatant.stances || [];
   const currentStanceIdx = stances.findIndex(
     (s: any) => s.id === combatant.activeStanceId,
@@ -60,7 +171,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   const isNeutral = currentStanceIdx === -1;
   const activeStance = isNeutral ? null : stances[currentStanceIdx];
 
-  // Cálculos de Status
   const stanceBonus = activeStance?.acBonus || 0;
   const totalAC = combatant.armorClass || 10;
 
@@ -70,13 +180,12 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   );
   const focusPercent = Math.min(
     100,
-    (combatant.currentFocus / combatant.maxFocus) * 100,
+    (combatant.focus.current / combatant.focus.max) * 100,
   );
 
-  // --- HANDLER: CONJURAR MAGIA ---
+  // --- HANDLERS EXISTENTES ---
   const handleCastSpell = (spell: Spell) => {
-    // 1. Validações
-    if (combatant.currentFocus < spell.cost) {
+    if (combatant.focus.current < spell.cost) {
       showAlert("Sem Foco", "Foco insuficiente.");
       return;
     }
@@ -86,12 +195,11 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       return;
     }
 
-    // 2. MAGIA DE ATAQUE (Abre Modal)
-    if (spell.isAttack) {
-      const intMod = combatant.attributes?.["Inteligência"]?.modifier || 0;
-      const wisMod = combatant.attributes?.["Sabedoria"]?.modifier || 0;
-      const magicMod = Math.max(intMod, wisMod);
+    const intMod = combatant.attributes?.["Inteligência"]?.modifier || 0;
+    const wisMod = combatant.attributes?.["Sabedoria"]?.modifier || 0;
+    const magicMod = Math.max(intMod, wisMod);
 
+    if (spell.isAttack) {
       setSpellAttackConfig({
         bonus: magicMod >= 0 ? `+${magicMod}` : `${magicMod}`,
         damage: spell.damageFormula || "1d4",
@@ -100,12 +208,18 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
 
       setAttackModalOpen(true);
-    }
-    // 3. MAGIA DE UTILIDADE/CURA (Resolve Direto)
-    else {
+    } else if (spell.isHealing) {
+      setSpellHealConfig({
+        formula: spell.healFormula || "1d4",
+        name: spell.name,
+        cost: spell.cost,
+        modifier: magicMod,
+      });
+      setHealModalOpen(true);
+    } else {
       const payload: ResolveActionPayload = {
         attackerId: combatant.id,
-        targetId: null, // Self ou definido pelo Mestre manualmente
+        targetId: null,
         actionName: spell.name,
         costType: actionKey || "standard",
         focusCost: spell.cost,
@@ -115,11 +229,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
       sendMessage("RESOLVE_ACTION", payload);
 
-      // Consumo Local
       updateCombatant(
         combatant.id,
-        "currentFocus",
-        Math.max(0, combatant.currentFocus - spell.cost),
+        "focus",
+        Math.max(0, combatant.focus.current - spell.cost),
       );
       if (actionKey) {
         updateCombatant(combatant.id, "turnActions", {
@@ -132,11 +245,54 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     }
   };
 
-  // --- HANDLER: HABILIDADE FÍSICA ---
+  const handleConfirmHeal = (targetId: string, healAmount: number) => {
+    if (!spellHealConfig) return;
+
+    const target = combatants.find((c) => c.id === targetId);
+
+    const payload: ResolveActionPayload = {
+      attackerId: combatant.id,
+      targetId: targetId,
+      actionName: spellHealConfig.name,
+      costType: "standard",
+      focusCost: spellHealConfig.cost,
+      damageAmount: 0,
+      healingAmount: healAmount,
+    };
+
+    sendMessage("RESOLVE_ACTION", payload);
+
+    if (target) {
+      if (target.hp.current <= 0) {
+        updateCombatant(targetId, "deathSaves", { successes: 0, failures: 0 });
+      }
+
+      const newHp = Math.min(target.hp.max, target.hp.current + healAmount);
+      updateCombatant(targetId, "hp", { ...target.hp, current: newHp });
+    }
+
+    // Consome Foco
+    updateCombatant(
+      combatant.id,
+      "focus",
+      Math.max(0, combatant.focus.current - spellHealConfig.cost),
+    );
+
+    if (turnActions.standard) {
+      updateCombatant(combatant.id, "turnActions", {
+        ...turnActions,
+        standard: false,
+      });
+    }
+
+    setSpellHealConfig(null);
+    showAlert("Cura Realizada", `${healAmount} PV restaurados.`);
+  };
+
   const handleUseSkill = (skill: Skill) => {
     const actionKey = getActionKey(skill.actionType);
 
-    if (combatant.currentFocus < skill.cost) {
+    if (combatant.focus.current < skill.cost) {
       showAlert("Sem Foco", "Foco insuficiente.");
       return;
     }
@@ -145,18 +301,16 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       return;
     }
 
-    // Update Local
     updateCombatant(
       combatant.id,
-      "currentFocus",
-      Math.max(0, combatant.currentFocus - skill.cost),
+      "focus",
+      Math.max(0, combatant.focus.current - skill.cost),
     );
     if (actionKey) {
       const newActions = { ...turnActions, [actionKey]: false };
       updateCombatant(combatant.id, "turnActions", newActions);
     }
 
-    // Payload
     const payload: ResolveActionPayload = {
       attackerId: combatant.id,
       targetId: null,
@@ -171,15 +325,12 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     showAlert("Habilidade", `${skill.name} utilizada.`);
   };
 
-  // --- HANDLER: POSTURAS (CORRIGIDO COM BASE_AC) ---
   const handleStanceChange = (newIndex: number) => {
-    // Lógica Segura de CA Base (Recupera base subtraindo bônus atual)
     const currentActiveStance = combatant.stances?.find(
       (s) => s.id === combatant.activeStanceId,
     );
     const currentBonusOnServer = currentActiveStance?.acBonus || 0;
 
-    // Se tiver baseArmorClass salvo no objeto, usa ele. Se não, calcula.
     const safeBaseAC =
       combatant.armorClass ??
       (combatant.armorClass || 10) - currentBonusOnServer;
@@ -189,7 +340,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     if (newIndex !== -1) {
       const newStance = combatant.stances[newIndex];
-      if (combatant.activeStanceId === newStance.id) return; // Já está nela
+      if (combatant.activeStanceId === newStance.id) return;
 
       if (!turnActions.bonus) {
         showAlert("Ação Indisponível", "Entrar em postura requer Ação Bônus.");
@@ -199,12 +350,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       nextStanceId = newStance.id;
       nextAC = safeBaseAC + (newStance.acBonus || 0);
 
-      // Consome ação
       const newActions = { ...turnActions, bonus: false };
       updateCombatant(combatant.id, "turnActions", newActions);
     }
 
-    // Atualiza Local e Envia
     updateCombatant(combatant.id, "activeStanceId", nextStanceId);
     updateCombatant(combatant.id, "armorClass", nextAC);
 
@@ -235,7 +384,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     setSpellAttackConfig(null);
   };
 
-  // --- HANDLER: CONFIRMAR ATAQUE (MODAL) ---
   const handleConfirmAttack = (
     targetId: string,
     hitTotal: number,
@@ -251,7 +399,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     const isHit = isCrit || hitTotal >= target.armorClass;
     const finalDamage = isHit ? damageTotal : 0;
 
-    // Detecta se foi Magia ou Ataque Físico
     const isSpell = !!spellAttackConfig;
     let actionName = isSpell ? spellAttackConfig.name : "Ataque Básico";
     if (isCrit) actionName += " (Crítico!)";
@@ -271,7 +418,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
     sendMessage("RESOLVE_ACTION", payload);
 
-    // Consome Ação Padrão (Visual)
     if (turnActions.standard) {
       updateCombatant(combatant.id, "turnActions", {
         ...turnActions,
@@ -279,18 +425,16 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
     }
 
-    // Consome Foco da Magia (Visual)
     if (focusCost > 0) {
       updateCombatant(
         combatant.id,
-        "currentFocus",
-        Math.max(0, combatant.currentFocus - focusCost),
+        "focus",
+        Math.max(0, combatant.focus.current - focusCost),
       );
     }
 
     setSpellAttackConfig(null);
 
-    // Névoa de Guerra no Feedback
     showAlert(
       isHit ? "Sucesso" : "Errou",
       isHit
@@ -301,6 +445,139 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     );
   };
 
+  // --- RENDERIZAÇÃO CONDICIONAL DE MORTE ---
+  if (isDying) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.deathContainer}>
+            <MaterialCommunityIcons
+              name="skull-outline"
+              size={60} // Diminuí um pouco para caber tudo
+              color={colors.error}
+            />
+            <Text style={styles.deathTitle}>VOCÊ ESTÁ CAÍDO!</Text>
+
+            {/* --- MONITOR DE MORTE --- */}
+            <View style={styles.deathMonitorCard}>
+              <View style={styles.deathSaveRow}>
+                {/* Sucessos */}
+                <View style={styles.deathSaveGroup}>
+                  <Text
+                    style={[styles.deathSaveLabel, { color: colors.success }]}
+                  >
+                    Sucessos
+                  </Text>
+                  <View style={styles.dotsContainer}>
+                    {[1, 2, 3].map((i) => (
+                      <TouchableOpacity
+                        key={`succ-${i}`}
+                        style={[
+                          styles.deathSaveDot,
+                          { borderColor: colors.success },
+                          successes >= i && { backgroundColor: colors.success },
+                        ]}
+                        onPress={() =>
+                          updateDeathSaves(
+                            "success",
+                            successes === i ? i - 1 : i,
+                          )
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                {/* Falhas */}
+                <View style={styles.deathSaveGroup}>
+                  <Text
+                    style={[styles.deathSaveLabel, { color: colors.error }]}
+                  >
+                    Falhas
+                  </Text>
+                  <View style={styles.dotsContainer}>
+                    {[1, 2, 3].map((i) => (
+                      <TouchableOpacity
+                        key={`fail-${i}`}
+                        style={[
+                          styles.deathSaveDot,
+                          { borderColor: colors.error },
+                          failures >= i && { backgroundColor: colors.error },
+                        ]}
+                        onPress={() =>
+                          updateDeathSaves(
+                            "failure",
+                            failures === i ? i - 1 : i,
+                          )
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
+              </View>
+              {successes >= 3 && (
+                <Text style={styles.stabilizedText}>ESTABILIZADO</Text>
+              )}
+              {failures >= 3 && <Text style={styles.deadText}>MORTO</Text>}
+            </View>
+
+            {/* BOTÕES DE ROLAGEM (Só mostra se não estabilizou nem morreu ainda) */}
+            {successes < 3 && failures < 3 && (
+              <>
+                <TouchableOpacity
+                  style={styles.deathBtn}
+                  onPress={() => handleDeathSave()}
+                >
+                  <MaterialCommunityIcons
+                    name="dice-d20"
+                    size={24}
+                    color="#fff"
+                  />
+                  <Text style={styles.deathBtnText}>ROLAGEM</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.dividerText}>— OU —</Text>
+
+                <View style={styles.manualRow}>
+                  <TextInput
+                    style={styles.manualInput}
+                    placeholder="Valor"
+                    placeholderTextColor="#ff8a80"
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={manualDeathInput}
+                    onChangeText={setManualDeathInput}
+                  />
+                  <TouchableOpacity
+                    style={styles.manualBtn}
+                    onPress={() => handleDeathSave(Number(manualDeathInput))}
+                  >
+                    <Text style={styles.manualBtnText}>CONFIRMAR</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.endTurnBtnBig}
+              onPress={handleEndTurn}
+            >
+              <Text style={styles.endTurnText}>PULAR / ENCERRAR TURNO</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // --- RENDERIZAÇÃO NORMAL (Combate Ativo) ---
   return (
     <ScrollView style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 16, marginTop: 10, marginBottom: 5 }}>
@@ -397,9 +674,9 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             </View>
             <Text style={styles.resourceValue}>
               <Text style={[styles.resourceCurrent, { color: colors.focus }]}>
-                {combatant.currentFocus}
+                {combatant.focus.current}
               </Text>
-              <Text style={styles.resourceMax}>/{combatant.maxFocus}</Text>
+              <Text style={styles.resourceMax}>/{combatant.focus.max}</Text>
             </Text>
           </View>
           <View style={styles.barBackground}>
@@ -606,9 +883,12 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             </View>
 
             {combatant.spells.map((spell) => {
+              if (spell.name === "Lavar Feridas") {
+                console.log("DADOS DA MAGIA:", JSON.stringify(spell, null, 2));
+              }
               const actionKey = getActionKey(spell.actionType || "standard");
               const hasAction = actionKey ? turnActions[actionKey] : true;
-              const hasFocus = combatant.currentFocus >= spell.cost;
+              const hasFocus = combatant.focus.current >= spell.cost;
               const canCast = hasAction && hasFocus;
 
               return (
@@ -638,6 +918,17 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
                         ATAQUE ({spell.damageFormula})
                       </Text>
                     )}
+                    {spell.isHealing && (
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          color: colors.success,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        Cura ({spell.healFormula})
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.skillCost}>
                     <Text style={{ fontWeight: "bold", color: colors.text }}>
@@ -656,7 +947,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
           {combatant.skills?.map((skill: any) => {
             const actionKey = getActionKey(skill.actionType || skill.action);
             const isAvailable = actionKey ? turnActions[actionKey] : true;
-            const hasFocus = combatant.currentFocus >= skill.cost;
+            const hasFocus = combatant.focus.current >= skill.cost;
             const canUse = isAvailable && hasFocus;
 
             return (
@@ -704,6 +995,22 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         initialBonus={spellAttackConfig?.bonus}
         initialDamage={spellAttackConfig?.damage}
       />
+
+      {spellHealConfig && (
+        <HealModal
+          visible={healModalOpen}
+          onClose={() => {
+            setHealModalOpen(false);
+            setSpellHealConfig(null);
+          }}
+          healer={combatant}
+          potentialTargets={combatants}
+          onConfirmHeal={handleConfirmHeal}
+          spellName={spellHealConfig.name}
+          healFormula={spellHealConfig.formula}
+          modifier={spellHealConfig.modifier}
+        />
+      )}
 
       {/* --- MODAL DO CAMPO DE BATALHA --- */}
       <Modal
@@ -759,6 +1066,48 @@ const InfoRow = ({ label, text, color, styles }: any) => (
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+
+    // ESTILOS DE DEATH SAVE (NOVO)
+    deathContainer: {
+      // flex: 1,
+      // justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: "#1a0505", // Fundo bem escuro avermelhado
+      padding: 24,
+    },
+    deathTitle: {
+      fontSize: 32,
+      fontWeight: "900",
+      color: colors.error,
+      marginTop: 16,
+      textAlign: "center",
+      letterSpacing: 2,
+    },
+    deathSubtitle: {
+      fontSize: 16,
+      color: "#ff8a80",
+      textAlign: "center",
+      marginVertical: 12,
+      marginBottom: 40,
+    },
+    deathBtn: {
+      backgroundColor: colors.error,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 32,
+      paddingVertical: 16,
+      borderRadius: 50,
+      gap: 12,
+      elevation: 10,
+      shadowColor: colors.error,
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+    },
+    deathBtnText: {
+      color: "#fff",
+      fontSize: 18,
+      fontWeight: "bold",
+    },
 
     // HUD ATIVO
     combatHud: {
@@ -1003,13 +1352,6 @@ const getStyles = (colors: any) =>
       color: colors.text,
       marginVertical: 8,
     },
-    label: {
-      fontSize: 12,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-      marginBottom: 6,
-      textTransform: "uppercase",
-    },
     input: {
       backgroundColor: colors.inputBg,
       padding: 14,
@@ -1118,5 +1460,91 @@ const getStyles = (colors: any) =>
       padding: 16,
       borderBottomWidth: 1,
       backgroundColor: colors.surface,
+    },
+    dividerText: {
+      color: "#ff8a80",
+      fontWeight: "bold",
+      marginVertical: 16,
+      opacity: 0.7,
+    },
+    manualRow: {
+      flexDirection: "row",
+      gap: 10,
+      width: "100%",
+      marginBottom: 20,
+      justifyContent: "center",
+    },
+    manualInput: {
+      backgroundColor: "rgba(255, 0, 0, 0.1)",
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: 8,
+      color: "#fff",
+      width: 80,
+      textAlign: "center",
+      fontSize: 18,
+      fontWeight: "bold",
+      padding: 12,
+    },
+    manualBtn: {
+      backgroundColor: "transparent",
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: 8,
+      justifyContent: "center",
+      paddingHorizontal: 16,
+    },
+    manualBtnText: {
+      color: colors.error,
+      fontWeight: "bold",
+      fontSize: 12,
+    },
+
+    // Monitor Card
+    deathMonitorCard: {
+      backgroundColor: "rgba(0,0,0,0.3)",
+      borderRadius: 12,
+      padding: 16,
+      width: "100%",
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: "#5c2b2b",
+    },
+    deathSaveRow: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      marginBottom: 8,
+    },
+    deathSaveGroup: { alignItems: "center" },
+    deathSaveLabel: {
+      fontSize: 14,
+      fontWeight: "bold",
+      marginBottom: 8,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    dotsContainer: { flexDirection: "row", gap: 12 },
+    deathSaveDot: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      backgroundColor: "transparent",
+    },
+    stabilizedText: {
+      color: colors.success,
+      textAlign: "center",
+      fontWeight: "bold",
+      fontSize: 18,
+      marginTop: 10,
+      letterSpacing: 2,
+    },
+    deadText: {
+      color: "#5c2b2b", // Vermelho morto escuro
+      textAlign: "center",
+      fontWeight: "bold",
+      fontSize: 24,
+      marginTop: 10,
+      letterSpacing: 4,
     },
   });

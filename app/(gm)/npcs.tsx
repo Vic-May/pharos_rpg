@@ -16,7 +16,8 @@ import { useAlert } from "@/context/AlertContext";
 import { useCampaign } from "@/context/CampaignContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
-import { Combatant, NpcTemplate } from "@/types/rpg";
+import { NpcTemplate } from "@/types/rpg";
+import { npcToCombatant } from "@/utils/combatantFactory";
 import { generateSafeId } from "@/utils/stringUtils";
 
 // Componentes
@@ -53,7 +54,7 @@ export default function NpcScreen() {
   };
 
   const handleSaveNpc = (data: Partial<NpcTemplate>) => {
-    if (editingNpc) {
+    if (editingNpc && editingNpc.id) {
       updateNpcInLibrary(editingNpc.id, data as NpcTemplate);
     } else {
       saveNpcToLibrary(data as Omit<NpcTemplate, "id">);
@@ -66,30 +67,34 @@ export default function NpcScreen() {
     setQtyModalVisible(true);
   };
 
+  const handleDuplicate = (npc: NpcTemplate) => {
+    // Cria uma cópia profunda para evitar referência
+    const copy: NpcTemplate = {
+      ...npc,
+      id: "", // Limpa o ID para ser tratado como novo ao salvar
+      name: `${npc.name} (Cópia)`,
+    };
+
+    setEditingNpc(copy); // Define como "editando" (mas sem ID, então salvará como novo)
+    setModalVisible(true);
+  };
+
   const confirmAddToCombat = () => {
     if (!selectedNpc) return;
     const qty = parseInt(quantity) || 1;
 
-    // 1. Limpa o nome base (remove "#1", "#2" se já vier no nome do template/seleção)
-    // Ex: se selectedNpc.name for "Bandido #2", vira "Bandido"
     const baseName = selectedNpc.name.replace(/ #\d+$/, "").trim();
 
-    // 2. Descobre qual o maior número que já existe no combate para esse nome
-    // Filtra todos que são "Bandido" ou "Bandido #X"
     const existingSameName = combatants.filter(
       (c) => c.name === baseName || c.name.startsWith(`${baseName} #`),
     );
 
     let highestNumber = 0;
-
     if (existingSameName.length > 0) {
-      // Se já tem gente com esse nome, varre para achar o maior número
       existingSameName.forEach((c) => {
-        // Se o nome for exato, conta como 1
         if (c.name === baseName) {
           highestNumber = Math.max(highestNumber, 1);
         } else {
-          // Tenta extrair o número do final da string
           const match = c.name.match(/ #(\d+)$/);
           if (match && match[1]) {
             highestNumber = Math.max(highestNumber, parseInt(match[1]));
@@ -98,48 +103,34 @@ export default function NpcScreen() {
       });
     }
 
-    // Lógica para enviar ao combate
     for (let i = 0; i < qty; i++) {
       const init =
         Math.floor(Math.random() * 20) + 1 + selectedNpc.initiativeBonus;
 
-      // 3. Define o próximo número sequencial
       const nextNumber = highestNumber + i + 1;
 
-      // 4. Decide se coloca o número no nome
-      // Coloca número se: Estiver adicionando mais de 1 AGORA -OU- Já existirem outros na mesa
       const shouldNumber = qty > 1 || existingSameName.length > 0;
 
-      const combatantName = shouldNumber
-        ? `${baseName} #${nextNumber}`
-        : baseName;
+      const newCombatant = npcToCombatant(selectedNpc, init, nextNumber);
 
-      const npcData = {
-        name: combatantName,
-        armorClass: selectedNpc.armorClass,
-        hp: { current: selectedNpc.maxHp, max: selectedNpc.maxHp },
-        maxFocus: selectedNpc.maxFocus,
-        initiative: init,
-        currentFocus: selectedNpc.maxFocus,
-        attributes: selectedNpc.attributes,
-        equipment: selectedNpc.equipment,
-        actions: selectedNpc.actions,
-        stances: selectedNpc.stances,
-        skills: selectedNpc.skills,
-        spells: selectedNpc.spells,
-        turnActions: { standard: true, bonus: true, reaction: true },
-      };
-
-      if (isConnected) {
-        const npcPayload = {
-          id: generateSafeId(combatantName), // ID único baseado no nome com número
-          type: "npc",
-          ...npcData,
-        } as Combatant;
-
-        sendMessage("GM_ADD_NPC", npcPayload);
+      if (!shouldNumber) {
+        newCombatant.name = baseName;
+        newCombatant.id = generateSafeId(baseName);
       } else {
-        addCombatant(combatantName, selectedNpc.maxHp, init, "npc", npcData);
+        newCombatant.name = `${baseName} #${nextNumber}`;
+      }
+
+      // Envio
+      if (isConnected) {
+        sendMessage("GM_ADD_NPC", newCombatant);
+      } else {
+        addCombatant(
+          newCombatant.name,
+          newCombatant.hp.max,
+          init,
+          "npc",
+          newCombatant,
+        );
       }
     }
 
@@ -162,6 +153,7 @@ export default function NpcScreen() {
             onEdit={handleEdit}
             onDelete={deleteNpcFromLibrary}
             onCombat={openCombatModal}
+            onDuplicate={handleDuplicate}
           />
         )}
         ListEmptyComponent={

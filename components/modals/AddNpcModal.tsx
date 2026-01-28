@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { SpellSelectorModal } from "./SpellSelectorModal";
 
 interface AddNpcModalProps {
@@ -185,6 +186,7 @@ export const AddNpcModal = ({
       name,
       subline,
       maxHp: parseInt(hp) || 10,
+      level: parseInt(level) || 1, // <--- ADICIONE ESTA CONVERSÃO
       //   hpFormula,
       class: npcClass,
       ancestry: ancestry,
@@ -236,7 +238,7 @@ export const AddNpcModal = ({
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <View style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>
             {initialData ? "Editar NPC" : "Criar NPC"}
@@ -553,7 +555,7 @@ export const AddNpcModal = ({
           onSelect={addSpell}
           learnedSpells={npcSpells}
         />
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };

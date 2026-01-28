@@ -94,6 +94,9 @@ export interface Spell {
   isAttack: boolean; // Abre modal de ataque?
   damageFormula?: string; // Ex: "2d6"
   actionType: "standard" | "bonus" | "reaction";
+
+  isHealing?: boolean; // Identifica se é magia de cura
+  healFormula?: string; // Ex: "1d8", "2d4+2"
 }
 
 interface Ancestry {
@@ -109,6 +112,27 @@ interface Origin {
   culturalTrait: string;
   heritage: string;
   languages: string[];
+}
+
+export interface Specialization {
+  id: string;
+  name: string;
+  classRequired: CharacterClass;
+  description: string;
+  // Para o Corsário, a especialização altera as posturas
+  newStances?: Stance[];
+  proficiencyChanges?: string; // Texto descrevendo a mudança
+}
+
+export type FeatCategory = "Geral" | "Marcial" | "Social" | "Mágico";
+
+export interface Feat {
+  id: string;
+  name: string;
+  category: FeatCategory;
+  objective: string; // O que o jogador tem que fazer
+  benefit: string; // A recompensa mecânica
+  prerequisite?: string;
 }
 
 export interface Character {
@@ -159,37 +183,49 @@ export interface Character {
     bonus: boolean;
     reaction: boolean;
   };
+  specialization?: Specialization | null;
+  feats: Feat[]; // Façanhas já desbloqueadas
 }
 
 export interface Combatant {
-  id: string;
+  // Identificação
+  id: string; // ID único na sessão de combate
+  templateId?: string; // ID original (do Character ou NpcTemplate)
   name: string;
   baseName?: string;
-  initiative: number;
-  hp: {
-    current: number;
-    max: number;
-  };
   type: "player" | "npc" | "gm";
+  image?: string; // Útil para o avatar no combate
 
+  // Stats Vitais (Obrigatórios para o combate)
+  hp: { current: number; max: number };
+  focus: { current: number; max: number };
   armorClass: number;
-  maxFocus: number;
-  currentFocus: number;
-  attributes: Record<AttributeName, Attribute>;
-  equipment?: string;
-  actions?: string;
+  initiative: number;
+  speed?: string; // Adicionado (NPC tem, Player precisa ter)
 
-  stances: Stance[];
-  skills: Skill[];
-  spells: Spell[]; // <--- Nova lista dedicada
-
-  activeStanceId?: string | null;
-
+  // Ações e Recursos
   turnActions: {
     standard: boolean;
     bonus: boolean;
     reaction: boolean;
   };
+  deathSaves: {
+    successes: number;
+    failures: number;
+  };
+
+  // Dados de Combate
+  attributes: Record<AttributeName, Attribute>;
+  stances: Stance[];
+  activeStanceId?: string | null; // Padronizado para ID
+
+  skills: Skill[];
+  spells: Spell[]; // Padronizado (Player.grimoire vira Combatant.spells)
+
+  // Equipamento/Ações: Aqui aceitamos string (NPC) ou Detalhado (Player)
+  // Ou simplificamos tudo para string para o combate ficar leve
+  equipmentSummary?: string;
+  actionsDescription?: string;
 }
 
 export interface NpcTemplate {

@@ -1,5 +1,7 @@
 import { EditCharacterModal } from "@/components/modals/EditCharacterModal";
+import { FeatsModal } from "@/components/modals/FeatsModal";
 import { GoldModal } from "@/components/modals/GoldModal";
+import { SpecializationModal } from "@/components/modals/SpecializationModal";
 import { AttributeGrid } from "@/components/rpg/AttributeGrid";
 import { DeathSaveMonitor } from "@/components/rpg/DeathSaveMonitor";
 import { ResourceControl } from "@/components/rpg/ResourceControl";
@@ -41,8 +43,13 @@ export default function HomeScreen() {
   // Estado para controlar a visibilidade do Modal de Edição
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [showOriginDetails, setShowOriginDetails] = useState(false);
+  const [specModalVisible, setSpecModalVisible] = useState(false);
+  const [featsModalVisible, setFeatsModalVisible] = useState(false);
 
   const [isMoneyModalVisible, setMoneyModalVisible] = useState(false);
+
+  const canSpecialize =
+    (character.level || 1) >= 5 && !character.specialization;
 
   const handleExport = async () => {
     try {
@@ -264,6 +271,74 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <View style={styles.divider} />
+
+        {/* SEÇÃO DE PROGRESSÃO */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Progressão</Text>
+
+          {/* Botão Especialização */}
+          <TouchableOpacity
+            style={[
+              styles.progressionBtn,
+              !canSpecialize && character.specialization && styles.btnCompleted,
+              !canSpecialize && !character.specialization && styles.btnLocked,
+            ]}
+            onPress={() => setSpecModalVisible(true)}
+            disabled={!canSpecialize && !character.specialization}
+          >
+            <View>
+              <Text style={styles.btnTitle}>Especialização</Text>
+              <Text style={styles.btnSub}>
+                {character.specialization
+                  ? character.specialization.name
+                  : canSpecialize
+                    ? "Toque para escolher"
+                    : "Bloqueado (Nível 5)"}
+              </Text>
+            </View>
+
+            <Ionicons
+              name={
+                character.specialization
+                  ? "checkmark-circle"
+                  : !canSpecialize
+                    ? "lock-closed"
+                    : "arrow-forward" // Ícone de cadeado se bloqueado
+              }
+              size={24}
+              color={
+                !canSpecialize && !character.specialization
+                  ? colors.textSecondary
+                  : colors.text
+              }
+            />
+          </TouchableOpacity>
+
+          {/* Botão Façanhas */}
+          <TouchableOpacity
+            style={styles.progressionBtn}
+            onPress={() => setFeatsModalVisible(true)}
+          >
+            <View>
+              <Text style={styles.btnTitle}>Façanhas</Text>
+              <Text style={styles.btnSub}>
+                {character.feats?.length || 0} desbloqueadas
+              </Text>
+            </View>
+            <Ionicons name="trophy-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <SpecializationModal
+          visible={specModalVisible}
+          onClose={() => setSpecModalVisible(false)}
+        />
+        <FeatsModal
+          visible={featsModalVisible}
+          onClose={() => setFeatsModalVisible(false)}
+        />
 
         <View style={styles.divider} />
 
@@ -740,10 +815,14 @@ const getStyles = (colors: ThemeColors) =>
     modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
     closeText: { color: colors.primary, fontSize: 16, fontWeight: "600" },
     modalContent: { padding: 20, paddingBottom: 50 },
+    section: {
+      // marginBottom: 24, // Espaço entre seções
+      // marginTop: 8,
+    },
     sectionTitle: {
       fontSize: 16,
       fontWeight: "bold",
-      marginTop: 20,
+      // marginTop: 20,
       marginBottom: 12,
       color: colors.textSecondary,
       textTransform: "uppercase",
@@ -895,5 +974,35 @@ const getStyles = (colors: ThemeColors) =>
     adjustBtnText: {
       fontWeight: "bold",
       color: colors.text,
+    },
+    progressionBtn: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    btnCompleted: {
+      backgroundColor: colors.inputBg, // Ou uma cor que indique "já feito"
+      borderColor: colors.success,
+    },
+    btnTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    btnSub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    btnLocked: {
+      backgroundColor: colors.inputBg,
+      opacity: 0.6,
+      borderColor: colors.border,
     },
   });

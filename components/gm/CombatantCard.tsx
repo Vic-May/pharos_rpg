@@ -41,7 +41,7 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
 
   const handleUseSkill = (skill: Skill) => {
     // 1. Verifica Foco (MANTIDO)
-    if (item.currentFocus < skill.cost) {
+    if (item.focus.current < skill.cost) {
       showAlert("Sem Foco", `${item.name} precisa de ${skill.cost} foco.`);
       return;
     }
@@ -59,7 +59,7 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
     }
 
     // 3. Executa o Gasto (MANTIDO)
-    updateCombatant(item.id, "currentFocus", item.currentFocus - skill.cost);
+    updateCombatant(item.id, "focus", item.focus.current - skill.cost);
 
     if (actionKey) {
       // Consome a ação automaticamente
@@ -161,11 +161,11 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
             </View>
 
             {/* Badge de Foco */}
-            {item.maxFocus > 0 && (
+            {item.focus.max > 0 && (
               <View style={styles.miniBadge}>
                 <Ionicons name="flash" size={12} color={colors.focus} />
                 <Text style={styles.miniBadgeText}>
-                  {item.currentFocus}/{item.maxFocus}
+                  {item.focus.current}/{item.focus.max}
                 </Text>
               </View>
             )}
@@ -321,7 +321,7 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
             <View style={styles.section}>
               <Text style={styles.sectionHeader}>Habilidades</Text>
               {item.skills.map((skill) => {
-                const canUseFocus = item.currentFocus >= skill.cost;
+                const canUseFocus = item.focus.current >= skill.cost;
 
                 // Verifica ação visualmente para feedback
                 const actionKey = getActionKey(skill.actionType);
@@ -375,8 +375,8 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
                   onPress={() =>
                     updateCombatant(
                       item.id,
-                      "currentFocus",
-                      Math.max(0, item.currentFocus - 1),
+                      "focus",
+                      Math.max(0, item.focus.current - 1),
                     )
                   }
                 >
@@ -387,14 +387,14 @@ export const CombatantCard = ({ item }: { item: Combatant }) => {
                   />
                 </TouchableOpacity>
                 <Text style={styles.statValue}>
-                  {item.currentFocus}/{item.maxFocus}
+                  {item.focus.current}/{item.focus.max}
                 </Text>
                 <TouchableOpacity
                   onPress={() =>
                     updateCombatant(
                       item.id,
-                      "currentFocus",
-                      Math.min(item.maxFocus, item.currentFocus + 1),
+                      "focus",
+                      Math.min(item.focus.current, item.focus.current + 1),
                     )
                   }
                 >

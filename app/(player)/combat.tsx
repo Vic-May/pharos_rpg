@@ -14,93 +14,11 @@ import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Skill } from "@/types/rpg";
 
-// Componentes Reutilizáveis
-import { InfoRow } from "@/components/rpg/InfoRow"; // Extraia se ainda não tiver
+import { InfoRow } from "@/components/rpg/InfoRow";
+import { SkillCard } from "@/components/rpg/SkillCard";
 import { StatBar } from "@/components/ui/StatBar";
-import { getActionKey } from "@/utils/rpgUtils";
 
 // Sub-componentes locais (poderiam ser extraídos para components/rpg/SkillCard.tsx)
-const SkillCard = ({
-  skill,
-  styles,
-  updateStat,
-  character,
-  toggleAction,
-  showAlert,
-}: any) => {
-  const [expanded, setExpanded] = React.useState(false);
-
-  const actionKey = getActionKey(skill.action || skill.actionType);
-  const hasEnoughFocus = character.stats.focus.current >= skill.cost;
-  const isActionAvailable = actionKey ? character.turnActions[actionKey] : true;
-
-  const handleUseSkill = () => {
-    if (!hasEnoughFocus) {
-      showAlert(
-        "Foco Insuficiente",
-        "Você não tem foco para usar esta habilidade.",
-      );
-      return;
-    }
-    if (!isActionAvailable) {
-      showAlert(
-        "Ação Indisponível",
-        `Você já gastou sua ${skill.action || "ação"} neste turno.`,
-      );
-      return;
-    }
-    updateStat("focus", -skill.cost);
-    if (actionKey) toggleAction(actionKey);
-  };
-
-  return (
-    <TouchableOpacity
-      style={styles.skillCard}
-      onPress={() => setExpanded(!expanded)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.skillHeader}>
-        <View>
-          <Text style={styles.skillName}>{skill.name}</Text>
-          <Text style={styles.skillType}>{skill.actionType}</Text>
-        </View>
-        <View
-          style={[
-            styles.costBadge,
-            !hasEnoughFocus && styles.costBadgeDisabled,
-          ]}
-        >
-          <Text
-            style={[
-              styles.costText,
-              !hasEnoughFocus && styles.costTextDisabled,
-            ]}
-          >
-            {skill.cost} Foco
-          </Text>
-        </View>
-      </View>
-      {expanded && (
-        <View style={styles.skillBody}>
-          <Text style={styles.description}>{skill.description}</Text>
-          <TouchableOpacity
-            style={[
-              styles.useButton,
-              (!hasEnoughFocus || !isActionAvailable) &&
-                styles.useButtonDisabled,
-            ]}
-            onPress={handleUseSkill}
-            disabled={!hasEnoughFocus}
-          >
-            <Text style={styles.useButtonText}>
-              {hasEnoughFocus ? "USAR HABILIDADE" : "FOCO INSUFICIENTE"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-};
 
 export default function CombatScreen() {
   const { character, setStanceIndex, updateStat, toggleAction, endTurn } =
@@ -160,8 +78,8 @@ export default function CombatScreen() {
 
   const renderSkill = ({ item }: { item: Skill }) => (
     <SkillCard
+      key={item.id}
       skill={item}
-      styles={styles}
       updateStat={updateStat}
       character={character}
       toggleAction={toggleAction}
@@ -340,6 +258,14 @@ export default function CombatScreen() {
               >
                 II
               </Text>
+              {currentStanceIdx !== 1 && !turnActions.bonus && (
+                <Ionicons
+                  name="lock-closed"
+                  size={10}
+                  color={colors.textSecondary}
+                  style={{ position: "absolute", top: 2, right: 2 }}
+                />
+              )}
             </TouchableOpacity>
           </View>
 

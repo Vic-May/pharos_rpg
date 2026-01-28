@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface EditCharacterModalProps {
   visible: boolean;
@@ -43,7 +44,7 @@ export function EditCharacterModal({
       presentationStyle="pageSheet" // iOS: Card estilo gaveta. Android: Full Screen.
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalContainer}>
         {/* --- HEADER FIXO --- */}
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Editar Personagem</Text>
@@ -263,7 +264,7 @@ export function EditCharacterModal({
             ))}
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -289,6 +290,7 @@ const getStyles = (colors: any) =>
       fontSize: 18,
       fontWeight: "bold",
       color: colors.text,
+      alignItems: "baseline",
     },
     closeBtn: {
       padding: 4,

@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { LearnSpellItem } from "../rpg/LearnSpellItem";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SpellSelectorModalProps {
   visible: boolean;
@@ -35,7 +36,7 @@ export const SpellSelectorModal = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Biblioteca Arcana</Text>
           <TouchableOpacity onPress={onClose}>
@@ -63,7 +64,7 @@ export const SpellSelectorModal = ({
             </View>
           ))}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
