@@ -47,12 +47,10 @@ export default function SessionCombatScreen() {
 
   // ID Seguro para comparação
   const mySafeId = generateSafeId(character.name);
-  console.log("Active Turn ID: ", activeTurnId);
 
   // Verifica quem está agindo
   const currentActor = combatants.find((c) => c.id === activeTurnId);
   const isMyTurn = currentActor ? currentActor.id === mySafeId : false;
-  console.log("MEU TURNO: ", isMyTurn);
 
   // Pega os dados sincronizados
   const myCombatantData = combatants.find((c) => c.id === mySafeId) || {

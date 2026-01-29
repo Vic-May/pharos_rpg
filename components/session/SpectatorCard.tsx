@@ -36,32 +36,48 @@ export const SpectatorCard = ({
       ]}
     >
       {/* IMAGEM DO COMBATENTE */}
-      <View style={styles.avatarContainer}>
-        {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-        ) : (
-          // Fallback se não tiver imagem: Ícone ou Primeira Letra
-          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-              {item.name.charAt(0)}
-            </Text>
-          </View>
-        )}
-      </View>
-      {/* Badge de Iniciativa */}
-      <View
-        style={[
-          styles.initBadge,
-          isActive && { backgroundColor: colors.primary },
-        ]}
-      >
-        <Text style={[styles.initText, isActive && { color: "#fff" }]}>
-          {Math.floor(item.initiative || 0)}
-        </Text>
+      <View style={styles.avatarWrapper}>
+        {/* IMAGEM / FALLBACK */}
+        <View
+          style={[
+            styles.avatarContainer,
+            isActive && { borderColor: colors.primary, borderWidth: 2 }, // Borda colorida se for a vez
+          ]}
+        >
+          {item.image ? (
+            <Image
+              source={{ uri: item.image }}
+              style={styles.avatar}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatarFallback,
+                { backgroundColor: isActive ? colors.primary : colors.inputBg },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.avatarInitial,
+                  { color: isActive ? "#fff" : colors.textSecondary },
+                ]}
+              >
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* BADGE DE INICIATIVA (Sobreposta) */}
+        <View style={[styles.initBadge, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.initLabel, { color: colors.textSecondary }]}>
+            INIT
+          </Text>
+          <Text style={[styles.initValue, { color: colors.text }]}>
+            {Math.floor(item.initiative || 0)}
+          </Text>
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>
@@ -135,13 +151,20 @@ const getStyles = (colors: any) =>
       borderColor: colors.border,
     },
     initBadge: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: colors.inputBg,
+      position: "absolute",
+      bottom: -6, // Sai um pouco para fora
+      right: -6, // Sai um pouco para fora
+      minWidth: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.border, // Cria um "recorte" visual entre a badge e o avatar
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 10,
+      paddingHorizontal: 4,
+      elevation: 5,
+      flexDirection: "row",
+      gap: 2,
     },
     initText: {
       fontWeight: "bold",
@@ -170,16 +193,54 @@ const getStyles = (colors: any) =>
       borderRadius: 3,
     },
     avatarContainer: {
-      marginRight: 12,
-    },
-    avatar: {
-      width: 50,
-      height: 50,
-      borderRadius: 25, // Redondo
-      backgroundColor: "#333",
-      justifyContent: "center",
-      alignItems: "center",
+      width: 56,
+      height: 56,
+      borderRadius: 28, // Círculo perfeito
+      overflow: "hidden",
       borderWidth: 2,
-      borderColor: "#444", // Borda padrão
+      borderColor: "transparent", // Borda invisível por padrão
+      elevation: 4, // Sombra Android
+      shadowColor: "#000", // Sombra iOS
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      backgroundColor: colors.background, // Fundo para png transparente
+    },
+
+    avatarWrapper: {
+      position: "relative", // Necessário para a badge absoluta
+      marginRight: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    avatar: {
+      width: "100%",
+      height: "100%",
+    },
+
+    avatarFallback: {
+      width: "100%",
+      height: "100%",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    avatarInitial: {
+      fontSize: 24,
+      fontWeight: "bold",
+    },
+
+    // BADGE DE INICIATIVA ESTILIZADA
+
+    initLabel: {
+      fontSize: 6,
+      fontWeight: "bold",
+      marginTop: 1,
+    },
+
+    initValue: {
+      fontSize: 10,
+      fontWeight: "900",
     },
   });

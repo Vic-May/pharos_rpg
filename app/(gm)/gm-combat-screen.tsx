@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -28,13 +28,6 @@ export default function GMCombatScreen() {
 
   const { isConnected, sendMessage, connectToRoute, disconnect } =
     useWebSocket();
-
-  // Modal NPC
-  const [npcName, setNpcName] = useState("");
-  const [npcHp, setNpcHp] = useState("10");
-  const [npcInit, setNpcInit] = useState("");
-
-  // --- HANDLERS ---
 
   const handleConnectGM = (ip: string, code: string) => {
     if (!ip || !code) {
@@ -93,7 +86,6 @@ export default function GMCombatScreen() {
       ],
     );
   };
-  console.log("Active Turn ID MESTRE: ", activeTurnId);
   const activeCombatant = combatants.find((c) => c.id === activeTurnId);
   const isNpcTurn = activeCombatant && activeCombatant.type === "npc";
 
