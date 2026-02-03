@@ -38,9 +38,6 @@ export const WebSocketProvider = ({
   const { character } = useCharacter();
   const { setCombatants, setActiveTurnId, setLogs } = useCampaign();
 
-  // ENDEREÇO DO SERVIDOR (Ajuste para o IP da sua máquina se usar emulador/celular físico)
-  // Ex: "ws://192.168.1.15:8080"
-
   const connectToRoute = (
     ip: string,
     sessionId: string,
@@ -48,12 +45,31 @@ export const WebSocketProvider = ({
     initialData: Combatant | any,
   ) => {
     if (socketRef.current) {
-      // Se já tiver conectado em outra, desconecta
       socketRef.current.close();
     }
 
-    // Monta a URL: ws://IP:8000/ws/SESSAO_123/CHAR_456
-    const wsUrl = `ws://${ip}:8000/ws/${sessionId}/${characterId}`;
+    let host = ip
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/^wss?:\/\//, "");
+
+    // Remove barra no final se houver (ex: ngrok.app/)
+    if (host.endsWith("/")) host = host.slice(0, -1);
+
+    let wsUrl = "";
+
+    if (
+      host.includes("ngrok") ||
+      host.includes(".app") ||
+      host.includes(".io") ||
+      /[a-zA-Z]/.test(host)
+    ) {
+      wsUrl = `wss://${host}/ws/${sessionId}/${characterId}`;
+    } else {
+      const hostWithPort = host.includes(":") ? host : `${host}:8000`;
+      wsUrl = `ws://${hostWithPort}/ws/${sessionId}/${characterId}`;
+    }
+
     console.log("Conectando em:", wsUrl);
 
     const ws = new WebSocket(wsUrl);
@@ -67,7 +83,7 @@ export const WebSocketProvider = ({
         initialData.type === "gm" ? "GM_CONNECT" : "JOIN_SESSION";
 
       const msg = JSON.stringify({
-        type: eventType, // <--- GM_CONNECT ou JOIN_SESSION
+        type: eventType,
         payload: {
           roomCode: sessionId,
           combatant: initialData,

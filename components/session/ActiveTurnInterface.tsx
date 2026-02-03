@@ -33,8 +33,8 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   const { updateCombatant, combatants, activeTurnId } = useCampaign();
   const { sendMessage } = useWebSocket();
   const { showAlert } = useAlert();
-  const { colors } = useTheme();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [attackModalOpen, setAttackModalOpen] = useState(false);
   const [battlefieldVisible, setBattlefieldVisible] = useState(false);
@@ -461,7 +461,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
           <View style={styles.deathContainer}>
             <MaterialCommunityIcons
               name="skull-outline"
-              size={60} // Diminuí um pouco para caber tudo
+              size={60}
               color={colors.error}
             />
             <Text style={styles.deathTitle}>VOCÊ ESTÁ CAÍDO!</Text>
@@ -550,7 +550,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
                   <TextInput
                     style={styles.manualInput}
                     placeholder="Valor"
-                    placeholderTextColor="#ff8a80"
+                    placeholderTextColor={colors.error + "80"}
                     keyboardType="number-pad"
                     maxLength={2}
                     value={manualDeathInput}
@@ -1069,16 +1069,13 @@ const InfoRow = ({ label, text, color, styles }: any) => (
   </View>
 );
 
-const getStyles = (colors: any) =>
+const getStyles = (colors: any, isDark: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    // ESTILOS DE DEATH SAVE (NOVO)
     deathContainer: {
-      // flex: 1,
-      // justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "#1a0505", // Fundo bem escuro avermelhado
+      backgroundColor: isDark ? colors.background : "#ffebee",
       padding: 24,
     },
     deathTitle: {
@@ -1508,7 +1505,7 @@ const getStyles = (colors: any) =>
 
     // Monitor Card
     deathMonitorCard: {
-      backgroundColor: "rgba(0,0,0,0.3)",
+      backgroundColor: colors.surface,
       borderRadius: 12,
       padding: 16,
       width: "100%",

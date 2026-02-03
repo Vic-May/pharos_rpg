@@ -67,6 +67,7 @@ export type ItemType = "consumable" | "equipment" | "key";
 export interface Item {
   id: string;
   name: string;
+  image?: string;
   description?: string;
   quantity: number;
   type: ItemType;

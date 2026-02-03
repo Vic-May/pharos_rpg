@@ -240,6 +240,14 @@ export default function CombatScreen() {
               >
                 I
               </Text>
+              {currentStanceIdx !== 0 && !turnActions.bonus && (
+                <Ionicons
+                  name="lock-closed"
+                  size={10}
+                  color={colors.textSecondary}
+                  style={{ position: "absolute", top: 2, right: 2 }}
+                />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[
