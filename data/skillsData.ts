@@ -1,15 +1,16 @@
 // src/data/skillData.ts
 import { Skill } from "../types/rpg";
 
+// 1. FORÇA / CONSTITUIÇÃO (Guerreiro, Vanguarda)
 export const MARTIAL_SKILLS: Skill[] = [
   // Nível 1
   {
     id: "golpe_demolidor",
     name: "Golpe Demolidor",
-    cost: 3,
+    cost: 2, // Custo reduzido de 3 para 2 conforme documento
     actionType: "Padrão",
     description:
-      "Ataque corpo a corpo. Adiciona 1 dado de dano extra da arma. Vantagem contra escudo/armadura pesada.",
+      "Ataque corpo a corpo. Adiciona 1 dado de dano extra. Vantagem no ataque se o alvo usar escudo ou armadura pesada.",
     level: 1,
   },
   {
@@ -17,7 +18,7 @@ export const MARTIAL_SKILLS: Skill[] = [
     name: "Vigor de Ferro",
     cost: 3,
     actionType: "Ação Bônus",
-    description: "Recupera PV igual a 1d10 + Constituição.",
+    description: "Ignora a dor e recupera PV igual a 1d10 + Constituição.",
     level: 1,
   },
   {
@@ -26,7 +27,7 @@ export const MARTIAL_SKILLS: Skill[] = [
     cost: 4,
     actionType: "Padrão",
     description:
-      "Ataque em cone de 3m. Jogada única contra CA de todos. Dano normal + empurrão de 1,5m.",
+      "Ataque em cone de 3m. Jogada única contra CA de todos. Dano normal da arma + empurrão de 1,5m.",
     level: 1,
   },
   {
@@ -35,7 +36,7 @@ export const MARTIAL_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Reação",
     description:
-      "Reduz o dano recebido pela metade. Imune a ser movido/derrubado até o próximo turno.",
+      "Ao sofrer dano: Reduz o dano pela metade. Imune a ser movido, derrubado ou empurrado até o próximo turno.",
     level: 1,
   },
   // Nível 2
@@ -45,16 +46,34 @@ export const MARTIAL_SKILLS: Skill[] = [
     cost: 5,
     actionType: "Padrão",
     description:
-      "Mova o dobro do deslocamento. Ataque com Vantagem. Se acertar: Dano normal + Teste de Força (alvo) ou é empurrado 3m e cai Prone.",
+      "Mova o dobro do deslocamento em linha reta. Ataque com Vantagem. Acerto: Dano normal + Teste de Força (alvo) ou é empurrado 3m e cai Prostrado.",
     level: 2,
   },
   {
     id: "concussao",
     name: "Concussão",
+    cost: 3, // Custo reduzido de 4 para 3 conforme documento
+    actionType: "Padrão",
+    description:
+      "Ataque focado na cabeça. Acerto: Dano normal e alvo faz Salvaguarda de CON. Falha = Confuso (repetir teste todo turno).",
+    level: 2,
+  },
+  {
+    id: "martir",
+    name: "Mártir",
+    cost: 4,
+    actionType: "Reação",
+    description:
+      "Quando aliado a 3m sofreria dano: Troque de lugar com ele e receba o ataque. O dano é reduzido pela metade (não acumulável com outras reduções).",
+    level: 2,
+  },
+  {
+    id: "ataque_redemoinho",
+    name: "Ataque Redemoinho",
     cost: 4,
     actionType: "Padrão",
     description:
-      "Ataque focado na cabeça. Se acertar: Dano normal e alvo faz teste de CON. Falha = Confuso (repetir teste todo turno).",
+      "Realize uma única jogada de ataque e compare com a CA de todos os inimigos adjacentes (1,5m). Acerto causa dano normal da arma.",
     level: 2,
   },
 ];
@@ -68,7 +87,7 @@ export const DEXTERITY_SKILLS: Skill[] = [
     cost: 2,
     actionType: "Ação Bônus",
     description:
-      "Alvo a 3m faz teste de CON. Falha = Cego ou Prostrado até fim do próximo turno.",
+      "Alvo a 3m faz Salvaguarda de CON. Falha = Cego ou Prostrado até fim do próximo turno dele.",
     level: 1,
   },
   {
@@ -86,7 +105,7 @@ export const DEXTERITY_SKILLS: Skill[] = [
     cost: 2,
     actionType: "Reação",
     description:
-      "Adiciona Proficiência na CA contra um ataque OU ganha Vantagem em teste de Destreza.",
+      "Ao ser alvo: Adiciona Proficiência na CA contra o ataque OU ganha Vantagem em teste de Destreza.",
     level: 1,
   },
   {
@@ -104,16 +123,16 @@ export const DEXTERITY_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Reação",
     description:
-      "Mova-se 3m sem atq. oportunidade. Ganha Vantagem em Furtividade ou Acrobacia até fim do turno.",
+      "Quando inimigo erra ataque corpo a corpo: Mova 3m sem atq. oportunidade. Ganha Vantagem em Furtividade ou Acrobacia até fim do turno.",
     level: 2,
   },
   {
     id: "granada_fumaca",
     name: "Granada de Fumaça",
-    cost: 3, // +1 Kit Explosivos (texto)
+    cost: 3,
     actionType: "Padrão",
     description:
-      "Gera área de fumaça de 6m. Todos dentro ficam Cegos e invisíveis para quem está fora. (Gasta +1 uso de Kit de Explosivos).",
+      "Gera área de fumaça de 6m. Todos dentro ficam Cegos e invisíveis para quem está fora. Requer: 1 uso de Kit de Explosivos.",
     level: 2,
   },
   {
@@ -122,12 +141,12 @@ export const DEXTERITY_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Ação Bônus",
     description:
-      "Próximo ataque à distância no turno: Ignora cobertura leve e causa +1 dado de dano.",
+      "Próximo ataque à distância no turno: Ignora cobertura leve e causa +1 dado de dano da arma.",
     level: 2,
   },
 ];
 
-// 3. ORATÓRIA (Orador)
+// 3. ORATÓRIA / CARISMA (Orador)
 export const ORATORY_SKILLS: Skill[] = [
   // Nível 1
   {
@@ -136,7 +155,7 @@ export const ORATORY_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Ação Bônus",
     description:
-      "Um aliado escolhido usa a Reação dele para realizar um Ataque imediatamente.",
+      "Escolha um aliado. Ele usa a Reação dele para realizar um Ataque imediatamente.",
     level: 1,
   },
   {
@@ -145,7 +164,7 @@ export const ORATORY_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Padrão",
     description:
-      "Inimigos em cone de 5m fazem teste de Sabedoria. Falha = Intimidados até próximo turno.",
+      "Inimigos em cone de 5m fazem Salvaguarda de Sabedoria. Falha = Intimidados até próximo turno.",
     level: 1,
   },
   {
@@ -154,7 +173,7 @@ export const ORATORY_SKILLS: Skill[] = [
     cost: 4,
     actionType: "Padrão",
     description:
-      "Até 3 aliados ganham +2 no próximo ataque ou teste de resistência.",
+      "Até 3 aliados (que possam ouvir) ganham +2 no próximo ataque ou teste de resistência.",
     level: 1,
   },
   {
@@ -172,7 +191,7 @@ export const ORATORY_SKILLS: Skill[] = [
     cost: 3,
     actionType: "Reação",
     description:
-      "Reduz o dano sofrido por um aliado a até 9m em 1d10 + Carisma.",
+      "Quando aliado a 9m sofrer dano: Reduz o dano sofrido em 1d10 + Carisma.",
     level: 2,
   },
   {
@@ -181,7 +200,7 @@ export const ORATORY_SKILLS: Skill[] = [
     cost: 5,
     actionType: "Padrão",
     description:
-      "Escolha um inimigo. Dois aliados ao alcance podem usar Reação para atacar imediatamente. Se o primeiro causar condição, o segundo tem benefício.",
+      "Escolha um inimigo. Dois aliados ao alcance usam Reação para atacar imediatamente. Se o 1º causar condição, o 2º tem benefício.",
     level: 2,
   },
 ];
