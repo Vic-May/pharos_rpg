@@ -286,3 +286,12 @@ export interface ResolveActionPayload {
   damageAmount: number;
   healingAmount: number;
 }
+
+export interface GameEvent {
+  id: number;
+  type: string;
+  target_id: string | null;
+  attacker_name: string;
+  skill_name: string;
+  value: number;
+}

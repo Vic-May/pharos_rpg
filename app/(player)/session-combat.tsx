@@ -20,12 +20,13 @@ import { generateSafeId } from "@/utils/stringUtils";
 
 // Componentes Refatorados
 import { ActiveTurnInterface } from "@/components/session/ActiveTurnInterface"; // Sua interface de turno
+import { CombatNotification } from "@/components/session/CombatNotification";
 import { ConnectionForm } from "@/components/session/ConnectionForm"; // O novo componente
 import { ReactionOverlay } from "@/components/session/ReactionOverlay"; // Sua barra de reação
 import { SpectatorCard } from "@/components/session/SpectatorCard"; // O novo componente
 
 export default function SessionCombatScreen() {
-  const { combatants, activeTurnId, logs } = useCampaign();
+  const { combatants, activeTurnId, logs, lastEvent } = useCampaign();
   const { character } = useCharacter();
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -44,6 +45,14 @@ export default function SessionCombatScreen() {
     ip: string;
     code: string;
   } | null>(null);
+
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    type: "damage" | "heal" | "info"; // <--- Adicionado
+    source: string;
+    skill: string;
+    value: number;
+  }>({ visible: false, type: "damage", source: "", skill: "", value: 0 });
 
   // ID Seguro para comparação
   const mySafeId = generateSafeId(character.name);
@@ -126,6 +135,24 @@ export default function SessionCombatScreen() {
       }
     }
   }, [logs]);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+
+    // Verifica se o alvo sou eu
+    if (lastEvent.target_id === mySafeId) {
+      // Se for Dano OU Cura
+      if (lastEvent.type === "damage" || lastEvent.type === "heal") {
+        setNotification({
+          visible: true,
+          type: lastEvent.type, // Passa "damage" ou "heal" direto do backend
+          source: lastEvent.attacker_name || "Origem desconhecida",
+          skill: lastEvent.skill_name || "Ação",
+          value: lastEvent.value || 0,
+        });
+      }
+    }
+  }, [lastEvent?.id, mySafeId]); // Monitora ID do evento
 
   // --- TELA DE CONEXÃO ---
   if (!isConnected) {
@@ -229,6 +256,14 @@ export default function SessionCombatScreen() {
   // --- TELA DE COMBATE ---
   return (
     <View style={styles.container}>
+      <CombatNotification
+        visible={notification.visible}
+        type={notification.type} // <--- Passando o tipo
+        source={notification.source}
+        skill={notification.skill}
+        value={notification.value}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
+      />
       {/* Banner de Turno */}
       <View
         style={[

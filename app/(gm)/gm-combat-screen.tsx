@@ -35,7 +35,7 @@ export default function GMCombatScreen() {
       return;
     }
     if (connectToRoute) {
-      connectToRoute(ip, code, "GM_ADMIN", {
+      connectToRoute(ip, code, {
         id: "GM_ADMIN",
         name: "Mestre",
         type: "gm",
