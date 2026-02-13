@@ -1,7 +1,8 @@
 import { Combatant } from "@/types/rpg";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AvatarPortrait } from "../ui/AvatarPortrait";
 
 interface GMCombatantCardProps {
   item: Combatant;
@@ -24,51 +25,28 @@ export const GMCombatantCard = ({
     <View
       style={[
         styles.card,
-        isActive && { borderColor: colors.primary, borderWidth: 2 },
         { backgroundColor: colors.surface, borderColor: colors.border },
+        isActive && { borderColor: colors.primary, borderWidth: 2 },
       ]}
     >
       <View style={styles.cardHeader}>
         {/* --- NOVO BLOCO DE AVATAR + INIT --- */}
         <View style={styles.avatarWrapper}>
-          <View
-            style={[
-              styles.avatarContainer,
-              isActive && { borderColor: colors.primary, borderWidth: 2 },
-            ]}
-          >
-            {item.image ? (
-              <Image
-                source={{ uri: item.image }}
-                style={styles.avatar}
-                resizeMode="cover"
-              />
-            ) : (
-              <View
-                style={[
-                  styles.avatarFallback,
-                  {
-                    backgroundColor: isActive ? colors.primary : colors.inputBg,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.avatarInitial,
-                    { color: isActive ? "#fff" : colors.textSecondary },
-                  ]}
-                >
-                  {item.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </View>
+          {/* Avatar Componentizado! */}
+          <AvatarPortrait
+            imageUrl={item.image}
+            size={48}
+            name={item.name}
+            fallbackBgColor={isActive ? colors.primary : colors.inputBg}
+            fallbackTextColor={isActive ? "#fff" : colors.textSecondary}
+          />
 
           {/* Badge de Iniciativa (Sobreposta) */}
           <View
             style={[
               styles.initBadge,
               { backgroundColor: colors.surface, borderColor: colors.border },
+              isActive && { borderColor: colors.primary }, // Se for o turno dele, a borda do badge também acende
             ]}
           >
             <Text style={[styles.initValue, { color: colors.text }]}>
@@ -78,12 +56,12 @@ export const GMCombatantCard = ({
         </View>
 
         {/* --- INFORMAÇÕES CENTRAIS --- */}
-        <View style={{ flex: 1, paddingHorizontal: 10 }}>
+        <View style={styles.infoCenter}>
           <Text
             style={[
               styles.name,
-              isActive && { color: colors.primary },
               { color: colors.text },
+              isActive && { color: colors.primary },
             ]}
             numberOfLines={1}
           >
@@ -92,12 +70,25 @@ export const GMCombatantCard = ({
           <Text style={[styles.typeLabel, { color: colors.textSecondary }]}>
             {isPlayer ? "JOGADOR" : "NPC"} • CA {item.armorClass}
           </Text>
+          {item.activeStanceId && (
+            <Text
+              style={{
+                fontSize: 10,
+                color: colors.primary, // Destaque na cor principal do tema
+                marginTop: 2,
+                fontWeight: "bold",
+              }}
+            >
+              {item.stances?.find((s) => s.id === item.activeStanceId)?.name ||
+                "Ativa"}
+            </Text>
+          )}
         </View>
 
         {/* Botão Remover */}
         <TouchableOpacity
           onPress={() => onRemove(item.id)}
-          style={{ padding: 5 }}
+          style={styles.removeBtn}
         >
           <Ionicons name="trash-outline" size={20} color={colors.error} />
         </TouchableOpacity>
@@ -112,7 +103,7 @@ export const GMCombatantCard = ({
           >
             <Ionicons name="remove-circle" size={32} color={colors.error} />
           </TouchableOpacity>
-          <View style={{ alignItems: "center", minWidth: 60 }}>
+          <View style={styles.statValueBox}>
             <Text style={[styles.statValue, { color: colors.hp || "#ef5350" }]}>
               {item.hp.current}/{item.hp.max}
             </Text>
@@ -128,7 +119,7 @@ export const GMCombatantCard = ({
         </View>
 
         <View
-          style={{ width: 1, height: "80%", backgroundColor: colors.border }}
+          style={[styles.verticalDivider, { backgroundColor: colors.border }]}
         />
 
         {/* Focus Control */}
@@ -144,7 +135,7 @@ export const GMCombatantCard = ({
               color={colors.textSecondary}
             />
           </TouchableOpacity>
-          <View style={{ alignItems: "center", minWidth: 50 }}>
+          <View style={styles.statValueBoxFocus}>
             <Text style={[styles.statValue, { color: colors.focus }]}>
               {item.focus.current}
             </Text>
@@ -186,42 +177,27 @@ const styles = StyleSheet.create({
   // Avatar Styles
   avatarWrapper: {
     position: "relative",
-    marginRight: 8,
+    marginRight: 12, // Aumentei um tiquinho o respiro do avatar para o nome
   },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "transparent",
-    backgroundColor: "#ccc",
-  },
-  avatar: { width: "100%", height: "100%" },
-  avatarFallback: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitial: { fontSize: 20, fontWeight: "bold" },
-
   initBadge: {
     position: "absolute",
     bottom: -6,
     right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22, // Deixei ligeiramente maior para acomodar números como "20"
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     elevation: 2,
   },
-  initValue: { fontSize: 9, fontWeight: "900" },
+  initValue: { fontSize: 10, fontWeight: "900" },
 
+  infoCenter: { flex: 1, paddingHorizontal: 4 },
   name: { fontSize: 16, fontWeight: "bold" },
-  typeLabel: { fontSize: 10, fontWeight: "bold", marginTop: 2 },
+  typeLabel: { fontSize: 11, fontWeight: "bold", marginTop: 2 },
+
+  removeBtn: { padding: 8 },
 
   statsRow: {
     flexDirection: "row",
@@ -230,7 +206,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 12,
   },
-  statControl: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statControl: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statValueBox: { alignItems: "center", minWidth: 60 },
+  statValueBoxFocus: { alignItems: "center", minWidth: 50 },
   statValue: { fontSize: 16, fontWeight: "bold" },
   statLabel: { fontSize: 10, fontWeight: "bold" },
+
+  verticalDivider: { width: 1, height: "80%" },
 });

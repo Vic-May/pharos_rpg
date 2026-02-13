@@ -39,12 +39,7 @@ export const SpectatorCard = ({
       {/* IMAGEM DO COMBATENTE */}
       <View style={styles.avatarWrapper}>
         {/* IMAGEM / FALLBACK */}
-        <View
-          style={[
-            styles.avatarContainer,
-            isActive && { borderColor: colors.primary, borderWidth: 2 }, // Borda colorida se for a vez
-          ]}
-        >
+        <View>
           <AvatarPortrait
             imageUrl={item.image}
             size={48}
@@ -102,9 +97,15 @@ export const SpectatorCard = ({
         {/* Status de Postura (Opcional) */}
         {item.activeStanceId && (
           <Text
-            style={{ fontSize: 10, color: colors.textSecondary, marginTop: 2 }}
+            style={{
+              fontSize: 10,
+              color: colors.primary,
+              marginTop: 2,
+              fontWeight: "bold",
+            }}
           >
-            Postura Ativa
+            {item.stances?.find((s) => s.id === item.activeStanceId)?.name ||
+              "Ativa"}
           </Text>
         )}
       </View>

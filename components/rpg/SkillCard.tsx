@@ -89,9 +89,6 @@ export const SkillCard = ({
     return "USAR HABILIDADE";
   };
 
-  // const isAvailable = actionKey ? turnActions[actionKey] : true;
-  // const canUse = isAvailable && hasEnoughFocus;
-
   return (
     <TouchableOpacity
       style={styles.skillCard}

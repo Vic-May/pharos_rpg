@@ -7,37 +7,45 @@ export const MARTIAL_SKILLS: Skill[] = [
   {
     id: "golpe_demolidor",
     name: "Golpe Demolidor",
-    cost: 2, // Custo reduzido de 3 para 2 conforme documento
+    cost: 2,
     actionType: "Padrão",
-    description:
-      "Ataque corpo a corpo. Adiciona 1 dado de dano extra. Vantagem no ataque se o alvo usar escudo ou armadura pesada.",
     level: 1,
+    description: "Ataque corpo a corpo. Adiciona 1 dado de dano extra2...",
+    usesWeaponDamage: true, // Usa o dano da espada/machado
+    weaponType: "melee", // <--- Usa a espada/machado
+    bonusDamage: "1d6", // O dado extra (pode ser fixo ou dinâmico na lógica)
+    damageType: "Físico",
   },
   {
     id: "vigor_ferro",
     name: "Vigor de Ferro",
     cost: 3,
     actionType: "Ação Bônus",
-    description: "Ignora a dor e recupera PV igual a 1d10 + Constituição.",
     level: 1,
+    description: "Ignora a dor e recupera PV igual a 1d10 + Constituição.",
+    isHealing: true,
+    healFormula: "1d10 + @CON", // @CON será substituído pelo modificador
   },
   {
     id: "varrer_linha",
     name: "Varrer a Linha",
     cost: 4,
     actionType: "Padrão",
-    description:
-      "Ataque em cone de 3m. Jogada única contra CA de todos. Dano normal da arma + empurrão de 1,5m.",
+    weaponType: "melee", // <--- Usa a espada/machado
     level: 1,
+    description: "Ataque em cone de 3m...",
+    usesWeaponDamage: true,
+    damageType: "Físico",
+    // Cone e área geralmente são tratados manualmente ou via grid, mas o dano é calculado aqui
   },
   {
     id: "bastiao_imovel",
     name: "Bastião Imóvel",
     cost: 3,
     actionType: "Reação",
-    description:
-      "Ao sofrer dano: Reduz o dano pela metade. Imune a ser movido, derrubado ou empurrado até o próximo turno.",
     level: 1,
+    description: "Reduz o dano pela metade...",
+    // Skills de reação defensiva geralmente não tem fórmula de dano
   },
   // Nível 2
   {
@@ -45,18 +53,29 @@ export const MARTIAL_SKILLS: Skill[] = [
     name: "Investida de Aríete",
     cost: 5,
     actionType: "Padrão",
-    description:
-      "Mova o dobro do deslocamento em linha reta. Ataque com Vantagem. Acerto: Dano normal + Teste de Força (alvo) ou é empurrado 3m e cai Prostrado.",
     level: 2,
+    description: "Mova o dobro... Dano normal + Teste de Força...",
+    weaponType: "melee", // <--- Usa a espada/machado
+    usesWeaponDamage: true,
+    saveRequest: {
+      attribute: "Força",
+      effect: "Derrubado (Prostrado)",
+    },
   },
   {
     id: "concussao",
     name: "Concussão",
-    cost: 3, // Custo reduzido de 4 para 3 conforme documento
+    cost: 3,
     actionType: "Padrão",
-    description:
-      "Ataque focado na cabeça. Acerto: Dano normal e alvo faz Salvaguarda de CON. Falha = Confuso (repetir teste todo turno).",
     level: 2,
+    description:
+      "Ataque focado na cabeça. Dano normal e alvo faz Salvaguarda...",
+    usesWeaponDamage: true,
+    weaponType: "melee", // <--- Usa a espada/machado
+    saveRequest: {
+      attribute: "Constituição",
+      effect: "Confuso",
+    },
   },
   {
     id: "martir",
@@ -95,9 +114,10 @@ export const DEXTERITY_SKILLS: Skill[] = [
     name: "Disparo Incapacitante",
     cost: 2,
     actionType: "Padrão",
-    description:
-      "Ataque à distância. Dano normal + Efeito: Deslocamento 0 OU Larga item/Desvantagem no ataque.",
     level: 1,
+    description: "Ataque à distância. Dano normal + Efeito...",
+    usesWeaponDamage: true,
+    weaponType: "ranged", // <--- Usa a espada/machado
   },
   {
     id: "reflexo_relampago",
@@ -140,9 +160,10 @@ export const DEXTERITY_SKILLS: Skill[] = [
     name: "Mira Calculada",
     cost: 3,
     actionType: "Ação Bônus",
-    description:
-      "Próximo ataque à distância no turno: Ignora cobertura leve e causa +1 dado de dano da arma.",
     level: 2,
+    description: "Próximo ataque... causa +1 dado de dano da arma.",
+    // Isso é um BUFF, não um ataque direto.
+    // Lógica sugerida: Adiciona um status "Mira Calculada" no personagem que altera o próximo ataque.
   },
 ];
 
@@ -163,9 +184,12 @@ export const ORATORY_SKILLS: Skill[] = [
     name: "Ultimato",
     cost: 3,
     actionType: "Padrão",
-    description:
-      "Inimigos em cone de 5m fazem Salvaguarda de Sabedoria. Falha = Intimidados até próximo turno.",
     level: 1,
+    description: "Inimigos em cone fazem Salvaguarda de Sabedoria...",
+    saveRequest: {
+      attribute: "Sabedoria",
+      effect: "Intimidado",
+    },
   },
   {
     id: "voz_autoridade",
@@ -181,8 +205,10 @@ export const ORATORY_SKILLS: Skill[] = [
     name: "Palavra de Coragem",
     cost: 2,
     actionType: "Padrão",
-    description: "Um aliado recupera 1d6 + Carisma de PV.",
     level: 1,
+    description: "Um aliado recupera 1d6 + Carisma de PV.",
+    isHealing: true,
+    healFormula: "1d6 + @CHA",
   },
   // Nível 2
   {

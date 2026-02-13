@@ -15,7 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAlert } from "@/context/AlertContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
-import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
+import {
+  ActionCostType,
+  Combatant,
+  ResolveActionPayload,
+  Skill,
+  Spell,
+} from "@/types/rpg";
 import { getActionKey } from "@/utils/rpgUtils";
 
 import { AttackModal } from "../modals/AttackModal";
@@ -290,41 +296,109 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     showAlert("Cura Realizada", `${healAmount} PV restaurados.`);
   };
 
+  // ActiveTurnInterface.tsx
+
   const handleUseSkill = (skill: Skill) => {
     const actionKey = getActionKey(skill.actionType);
+    console.log("DADOS SKILL USADA: ", skill);
 
     if (combatant.focus.current < skill.cost) {
       showAlert("Sem Foco", "Foco insuficiente.");
       return;
     }
     if (actionKey && !turnActions[actionKey]) {
-      showAlert("Sem Ação", "Ação indisponível.");
+      showAlert("Sem Ação", "Ação indisponível neste turno.");
       return;
     }
 
-    updateCombatant(
-      combatant.id,
-      "focus",
-      Math.max(0, combatant.focus.current - skill.cost),
-    );
+    // 2. É UMA HABILIDADE DE ATAQUE? (Usa arma ou tem dano bônus)
+    if (skill.usesWeaponDamage || skill.bonusDamage) {
+      // Descobrir qual arma usar
+      let weaponToUse = combatant.weapons?.melee; // Padrão é corpo-a-corpo
 
-    if (actionKey) {
-      const newActions = { ...turnActions, [actionKey]: false };
-      updateCombatant(combatant.id, "turnActions", newActions);
+      if (skill.weaponType === "ranged") {
+        weaponToUse = combatant.weapons?.ranged;
+      } else if (skill.weaponType === "any") {
+        // Se pode usar qualquer uma, pega a que tiver o melhor atributo (ou deixa o jogador escolher depois, mas aqui simplificamos para a melee como fallback)
+        weaponToUse = combatant.weapons?.melee;
+      }
+
+      // Descobrir o Modificador de Atributo (Força ou Destreza)
+      const attrName = weaponToUse?.attribute || "Força";
+      const attrMod = combatant.attributes?.[attrName]?.modifier || 0;
+
+      // Bônus de Acerto (+Força ou +Destreza)
+      const attackBonusString = attrMod >= 0 ? `+${attrMod}` : `${attrMod}`;
+
+      // Montar a Fórmula de Dano
+      let damageFormulaElements = [];
+
+      if (skill.usesWeaponDamage && weaponToUse?.damage) {
+        // Adiciona o dano da arma + o atributo (ex: "1d8+3")
+        // Obs: Se o dano da arma no JSON já vier com o "+3" embutido, não soma de novo.
+        // Assumindo que weapon.damage é só os dados (ex: "1d8")
+        const baseDmg = weaponToUse.damage.includes("+")
+          ? weaponToUse.damage
+          : `${weaponToUse.damage}${attrMod >= 0 ? `+${attrMod}` : attrMod}`;
+
+        damageFormulaElements.push(baseDmg);
+      }
+
+      if (skill.bonusDamage) {
+        damageFormulaElements.push(skill.bonusDamage); // Adiciona o bônus da skill (ex: "1d6")
+      }
+
+      const finalDamageFormula = damageFormulaElements.join(" + ") || "0";
+
+      // Abre o Modal de Ataque com as informações pré-preenchidas
+      setSpellAttackConfig({
+        name: skill.name,
+        cost: skill.cost,
+        bonus: attackBonusString,
+        damage: finalDamageFormula,
+      });
+      setAttackModalOpen(true);
     }
+    // 3. É UMA HABILIDADE DE CURA?
+    else if (skill.isHealing) {
+      // Lógica de cura (similar ao que você já tem no handleCastSpell)
+      const intMod = combatant.attributes?.["Inteligência"]?.modifier || 0;
+      setSpellHealConfig({
+        formula: skill.healFormula || "1d4",
+        name: skill.name,
+        cost: skill.cost,
+        modifier: intMod,
+      });
+      setHealModalOpen(true);
+    }
+    // 4. É UM BUFF / HABILIDADE DE SUPORTE (Resolução Imediata)
+    else {
+      // Consome o Foco e a Ação imediatamente
+      updateCombatant(
+        combatant.id,
+        "focus",
+        Math.max(0, combatant.focus.current - skill.cost),
+      );
+      if (actionKey) {
+        updateCombatant(combatant.id, "turnActions", {
+          ...turnActions,
+          [actionKey]: false,
+        });
+      }
 
-    const payload: ResolveActionPayload = {
-      attackerId: combatant.id,
-      targetId: null,
-      actionName: skill.name,
-      costType: actionKey || "standard",
-      focusCost: skill.cost,
-      damageAmount: 0,
-      healingAmount: 0,
-    };
+      const payload: ResolveActionPayload = {
+        attackerId: combatant.id,
+        targetId: null,
+        actionName: skill.name,
+        costType: actionKey || "standard",
+        focusCost: skill.cost,
+        damageAmount: 0,
+        healingAmount: 0,
+      };
 
-    sendMessage("RESOLVE_ACTION", payload);
-    showAlert("Habilidade", `${skill.name} utilizada.`);
+      sendMessage("RESOLVE_ACTION", payload);
+      showAlert("Habilidade", `${skill.name} utilizada.`);
+    }
   };
 
   const handleStanceChange = (newIndex: number) => {
@@ -383,18 +457,23 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     const isHit = isCrit || hitTotal >= target.armorClass;
     const finalDamage = isHit ? damageTotal : 0;
 
-    const isSpell = !!spellAttackConfig;
-    let actionName = isSpell ? spellAttackConfig.name : "Ataque Básico";
+    const isSpecialAction = !!spellAttackConfig;
+    let actionName = isSpecialAction ? spellAttackConfig.name : "Ataque Básico";
     if (isCrit) actionName += " (Crítico!)";
     else if (!isHit) actionName += " (Errou)";
 
-    const focusCost = isSpell ? spellAttackConfig.cost : 0;
+    // let actionName = isSpecialAction ? spellAttackConfig.name : "Ataque Básico";
+    // if (isCrit) actionName += " (Crítico!)";
+    // else if (!isHit) actionName += " (Errou)";
+
+    const focusCost = isSpecialAction ? spellAttackConfig.cost : 0;
+    let actionSpent: ActionCostType = "standard";
 
     const payload: ResolveActionPayload = {
       attackerId: combatant.id,
       targetId: targetId,
       actionName: actionName,
-      costType: "standard",
+      costType: actionSpent,
       focusCost: focusCost,
       damageAmount: finalDamage,
       healingAmount: 0,
