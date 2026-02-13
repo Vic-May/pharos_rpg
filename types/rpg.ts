@@ -94,7 +94,7 @@ export interface Spell {
   // Novos campos para automação:
   isAttack: boolean; // Abre modal de ataque?
   damageFormula?: string; // Ex: "2d6"
-  actionType: "standard" | "bonus" | "reaction";
+  actionType: ActionType;
 
   isHealing?: boolean; // Identifica se é magia de cura
   healFormula?: string; // Ex: "1d8", "2d4+2"

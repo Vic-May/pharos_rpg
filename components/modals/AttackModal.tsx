@@ -53,7 +53,7 @@ interface AttackModalProps {
     targetId: string,
     hitTotal: number,
     damageTotal: number,
-    isCrit: boolean
+    isCrit: boolean,
   ) => void;
   isGm: boolean; // <--- A chave para a visibilidade
   initialBonus?: string;
@@ -162,7 +162,7 @@ export const AttackModal = ({
           {step === 1 && (
             <FlatList
               data={potentialTargets.filter(
-                (t) => t.id !== attacker.id && t.hp.current > 0
+                (t) => t.id !== attacker.id && t.hp.current > 0,
               )}
               keyExtractor={(item) => item.id}
               style={{ maxHeight: 400 }}
@@ -242,7 +242,7 @@ export const AttackModal = ({
                     Status:{" "}
                     {getHealthStatus(
                       selectedTarget.hp.current,
-                      selectedTarget.hp.max
+                      selectedTarget.hp.max,
                     )}
                   </Text>
                 )}
@@ -329,10 +329,12 @@ export const AttackModal = ({
                   style={[
                     styles.resultBanner,
                     {
-                      backgroundColor:
-                        parseInt(hitValue) >= selectedTarget.armorClass
+                      // Se for GM, pinta de Verde/Vermelho. Se for Player, pinta de Cinza/Neutro.
+                      backgroundColor: isGm
+                        ? parseInt(hitValue) >= selectedTarget.armorClass
                           ? colors.success + "20"
-                          : colors.error + "20",
+                          : colors.error + "20"
+                        : colors.border, // Cor neutra para player
                     },
                   ]}
                 >
@@ -340,16 +342,23 @@ export const AttackModal = ({
                     style={[
                       styles.resultText,
                       {
-                        color:
-                          parseInt(hitValue) >= selectedTarget.armorClass
+                        // Se for GM, texto colorido. Se for Player, texto neutro.
+                        color: isGm
+                          ? parseInt(hitValue) >= selectedTarget.armorClass
                             ? colors.success
-                            : colors.error,
+                            : colors.error
+                          : colors.text,
                       },
                     ]}
                   >
-                    {parseInt(hitValue) >= selectedTarget.armorClass
-                      ? "ACERTOU!"
-                      : "ERROU!"}
+                    {/* LÓGICA PRINCIPAL AQUI */}
+                    {
+                      isGm
+                        ? parseInt(hitValue) >= selectedTarget.armorClass
+                          ? "ACERTOU!"
+                          : "ERROU!"
+                        : "ATAQUE ENVIADO" /* Player vê apenas isso */
+                    }
                   </Text>
                 </View>
               )}

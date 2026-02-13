@@ -258,7 +258,7 @@ export default function SessionCombatScreen() {
     <View style={styles.container}>
       <CombatNotification
         visible={notification.visible}
-        type={notification.type} // <--- Passando o tipo
+        type={notification.type}
         source={notification.source}
         skill={notification.skill}
         value={notification.value}
@@ -296,7 +296,7 @@ export default function SessionCombatScreen() {
         <FlatList
           data={combatants}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
           renderItem={({ item }) => (
             <SpectatorCard
               item={item}

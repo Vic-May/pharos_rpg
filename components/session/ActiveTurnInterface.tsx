@@ -1,5 +1,5 @@
 import { useCampaign } from "@/context/CampaignContext";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   FlatList,
@@ -19,9 +19,14 @@ import { useAlert } from "@/context/AlertContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
-import { getActionColor, getActionKey } from "@/utils/rpgUtils";
+import { getActionKey } from "@/utils/rpgUtils";
 import { AttackModal } from "../modals/AttackModal";
 import { HealModal } from "../modals/HealModal";
+import { ActionTracker } from "../rpg/ActionTracker";
+import { CombatHud } from "../rpg/CombatHud";
+import { SkillCard } from "../rpg/SkillCard";
+import { SpellCard } from "../rpg/SpellCard";
+import { StanceSelector } from "../rpg/StanceSelector";
 import { SpectatorCard } from "./SpectatorCard";
 
 interface Props {
@@ -173,16 +178,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   const activeStance = isNeutral ? null : stances[currentStanceIdx];
 
   const stanceBonus = activeStance?.acBonus || 0;
-  const totalAC = combatant.armorClass || 10;
-
-  const hpPercent = Math.min(
-    100,
-    (combatant.hp.current / combatant.hp.max) * 100,
-  );
-  const focusPercent = Math.min(
-    100,
-    (combatant.focus.current / combatant.focus.max) * 100,
-  );
 
   // --- HANDLERS EXISTENTES ---
   const handleCastSpell = (spell: Spell) => {
@@ -331,10 +326,11 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       (s) => s.id === combatant.activeStanceId,
     );
     const currentBonusOnServer = currentActiveStance?.acBonus || 0;
+    console.log("currentBonusOnServer: ", currentBonusOnServer);
 
-    const safeBaseAC =
-      combatant.armorClass ??
-      (combatant.armorClass || 10) - currentBonusOnServer;
+    const safeBaseAC = (combatant.armorClass || 10) - currentBonusOnServer;
+
+    console.log("safeBaseAC: ", safeBaseAC);
 
     let nextStanceId = null;
     let nextAC = safeBaseAC;
@@ -350,6 +346,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
       nextStanceId = newStance.id;
       nextAC = safeBaseAC + (newStance.acBonus || 0);
+      console.log("NOVA AC: ", nextAC);
 
       const newActions = { ...turnActions, bonus: false };
       updateCombatant(combatant.id, "turnActions", newActions);
@@ -362,17 +359,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       combatantId: combatant.id,
       stanceId: nextStanceId,
       newAC: nextAC,
-    });
-  };
-
-  const handleToggleAction = (type: "standard" | "bonus" | "reaction") => {
-    const newVal = !turnActions[type];
-    const newActions = { ...turnActions, [type]: newVal };
-    updateCombatant(combatant.id, "turnActions", newActions);
-    sendMessage("PLAYER_ACTION", {
-      character_id: combatant.id,
-      action_type: "TOGGLE_ACTION",
-      payload: { action_key: type, value: newVal },
     });
   };
 
@@ -593,256 +579,27 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         </TouchableOpacity>
       </View>
       {/* --- HUD DE COMBATE --- */}
-      <View style={styles.combatHud}>
-        <View style={styles.topRow}>
-          {/* VIDA */}
-          <View style={styles.healthContainer}>
-            <View style={styles.resourceHeader}>
-              <View style={styles.labelGroup}>
-                <Ionicons
-                  name="heart"
-                  size={14}
-                  color={colors.hp || "#ef5350"}
-                />
-                <Text style={styles.hudLabel}>VIDA</Text>
-              </View>
-              <Text style={styles.resourceValue}>
-                <Text
-                  style={[
-                    styles.resourceCurrent,
-                    { color: colors.hp || "#ef5350" },
-                  ]}
-                >
-                  {combatant.hp.current}
-                </Text>
-                <Text style={styles.resourceMax}>/{combatant.hp.max}</Text>
-              </Text>
-            </View>
-            <View style={styles.barBackground}>
-              <View
-                style={[
-                  styles.barFill,
-                  {
-                    width: `${hpPercent}%`,
-                    backgroundColor: colors.hp || "#ef5350",
-                  },
-                ]}
-              />
-            </View>
-          </View>
-
-          <View style={styles.verticalSeparator} />
-
-          {/* CA */}
-          <View style={styles.acContainer}>
-            <View style={styles.labelGroup}>
-              <MaterialCommunityIcons
-                name="shield"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.hudLabel}>DEFESA</Text>
-            </View>
-            <View style={styles.acValueContainer}>
-              <Text style={styles.acTotal}>{totalAC}</Text>
-              {stanceBonus !== 0 && (
-                <View
-                  style={[
-                    styles.modBadge,
-                    {
-                      borderColor:
-                        stanceBonus > 0 ? colors.success : colors.error,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={stanceBonus > 0 ? "arrow-up" : "arrow-down"}
-                    size={10}
-                    color={stanceBonus > 0 ? colors.success : colors.error}
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* FOCO */}
-        <View style={styles.bottomRow}>
-          <View style={styles.resourceHeader}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="flash" size={14} color={colors.focus} />
-              <Text style={styles.hudLabel}>FOCO</Text>
-            </View>
-            <Text style={styles.resourceValue}>
-              <Text style={[styles.resourceCurrent, { color: colors.focus }]}>
-                {combatant.focus.current}
-              </Text>
-              <Text style={styles.resourceMax}>/{combatant.focus.max}</Text>
-            </Text>
-          </View>
-          <View style={styles.barBackground}>
-            <View
-              style={[
-                styles.barFill,
-                { width: `${focusPercent}%`, backgroundColor: colors.focus },
-              ]}
-            />
-          </View>
-        </View>
-      </View>
-
+      <CombatHud
+        health={combatant.hp}
+        focus={combatant.focus}
+        armorClass={combatant.armorClass}
+        stanceMod={stanceBonus}
+      />
       <View style={{ paddingHorizontal: 16 }}>
         {/* --- SELETOR DE POSTURA --- */}
-        {/* LÓGICA: Só exibe o Seletor se existirem posturas cadastradas */}
         {combatant.stances && combatant.stances.length > 0 ? (
-          <View style={styles.stanceSelectorContainer}>
-            <Text style={styles.sectionLabel}>Postura Atual</Text>
-
-            <View style={styles.stanceToggleGroup}>
-              {/* Botão Neutra (Sempre existe se houver posturas para alternar) */}
-              <TouchableOpacity
-                style={[
-                  styles.stanceBtn,
-                  isNeutral && styles.stanceBtnNeutralActive,
-                ]}
-                onPress={() => handleStanceChange(-1)}
-              >
-                <Text
-                  style={[
-                    styles.stanceBtnText,
-                    isNeutral && styles.stanceBtnTextActive,
-                  ]}
-                >
-                  Neutra
-                </Text>
-              </TouchableOpacity>
-
-              {/* Botões Dinâmicos (I, II, III...) baseados no array */}
-              {combatant.stances.map((stance: any, index: number) => {
-                const isThisStanceActive = currentStanceIdx === index;
-                // Só pode ativar se for a vez do turno e tiver ação bônus (ou regra da casa)
-                const canSwitch = isThisStanceActive || turnActions.bonus;
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.stanceBtn,
-                      // Estilo condicional para I (idx 0) e II (idx 1)
-                      isThisStanceActive &&
-                        (index === 0
-                          ? styles.stanceBtnP1Active
-                          : styles.stanceBtnP2Active),
-                      !isThisStanceActive && !canSwitch && { opacity: 0.5 },
-                    ]}
-                    onPress={() => handleStanceChange(index)}
-                    disabled={!isThisStanceActive && !canSwitch}
-                  >
-                    <Text
-                      style={[
-                        styles.stanceBtnText,
-                        isThisStanceActive && { color: "#fff" },
-                      ]}
-                    >
-                      {index === 0 ? "I" : index === 1 ? "II" : "III"}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Card de Detalhes da Postura */}
-            <View
-              style={[
-                styles.stanceCard,
-                isNeutral
-                  ? styles.stanceNeutralBg
-                  : currentStanceIdx === 0
-                    ? styles.stanceOneBg
-                    : styles.stanceTwoBg,
-              ]}
-            >
-              <Text style={styles.activeStanceName}>
-                {isNeutral ? "Postura Neutra" : activeStance?.name}
-              </Text>
-
-              <View style={styles.divider} />
-
-              {isNeutral ? (
-                <Text style={styles.neutralText}>
-                  Combatendo sem foco em técnicas específicas.
-                </Text>
-              ) : (
-                <View style={styles.stanceDetails}>
-                  <InfoRow
-                    label="Benefício"
-                    text={activeStance?.benefit}
-                    color={colors.success}
-                    styles={styles}
-                  />
-                  <InfoRow
-                    label="Restrição"
-                    text={activeStance?.restriction}
-                    color={colors.error}
-                    styles={styles}
-                  />
-                  <InfoRow
-                    label="Manobra"
-                    text={activeStance?.maneuver}
-                    color={colors.focus}
-                    styles={styles}
-                  />
-                  {activeStance?.recovery && (
-                    <InfoRow
-                      label="Recuperação"
-                      text={activeStance.recovery}
-                      color={colors.primary}
-                      styles={styles}
-                    />
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
-        ) : // (OPCIONAL) Se não tiver posturas, não renderiza nada ou renderiza algo simples
-        null}
+          <StanceSelector
+            stances={combatant.stances}
+            activeStanceId={combatant.activeStanceId}
+            turnActions={turnActions}
+            onStanceChange={handleStanceChange}
+          />
+        ) : null}
 
         {/* --- RASTREADOR DE AÇÕES --- */}
         <View style={styles.combatSection}>
           <Text style={styles.sectionHeader}>Ações</Text>
-          <View style={styles.actionsRow}>
-            {["standard", "bonus", "reaction"].map((type) => {
-              const key = type as "standard" | "bonus" | "reaction";
-              const isActive = turnActions[key];
-              const color =
-                key === "standard"
-                  ? colors.primary
-                  : key === "bonus"
-                    ? "#fb8c00"
-                    : "#8e24aa";
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.actionBtn,
-                    {
-                      backgroundColor: isActive ? color : colors.inputBg,
-                      opacity: isActive ? 1 : 0.5,
-                    },
-                  ]}
-                  onPress={() => handleToggleAction(key)}
-                >
-                  <Text style={styles.actionBtnText}>
-                    {key === "standard"
-                      ? "Padrão"
-                      : key === "bonus"
-                        ? "Bônus"
-                        : "Reação"}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ActionTracker turnActions={turnActions} onToggle={() => null} />
 
           <TouchableOpacity
             style={[
@@ -885,59 +642,14 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
               </Text>
             </View>
 
-            {combatant.spells.map((spell) => {
-              const actionKey = getActionKey(spell.actionType || "standard");
-              const hasAction = actionKey ? turnActions[actionKey] : true;
-              const hasFocus = combatant.focus.current >= spell.cost;
-              const canCast = hasAction && hasFocus;
-
-              return (
-                <TouchableOpacity
-                  key={spell.id}
-                  style={[
-                    styles.skillRow,
-                    { borderColor: "#b39ddb" },
-                    !canCast && { opacity: 0.5, borderColor: colors.border },
-                  ]}
-                  disabled={!canCast}
-                  onPress={() => handleCastSpell(spell)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.skillName, { color: "#b39ddb" }]}>
-                      {spell.name}
-                    </Text>
-                    <Text style={styles.detailText}>{spell.description}</Text>
-                    {spell.isAttack && (
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: colors.error,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        ATAQUE ({spell.damageFormula})
-                      </Text>
-                    )}
-                    {spell.isHealing && (
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: colors.success,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        Cura ({spell.healFormula})
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.skillCost}>
-                    <Text style={{ fontWeight: "bold", color: colors.text }}>
-                      {spell.cost} Foco
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {combatant.spells.map((spell) => (
+              <SpellCard
+                key={spell.id}
+                spell={spell}
+                character={combatant}
+                onCast={handleCastSpell}
+              />
+            ))}
           </View>
         )}
 
@@ -946,37 +658,15 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         {combatant.skills && combatant.skills.length > 0 ? (
           <View style={styles.combatSection}>
             <Text style={styles.sectionHeader}>Habilidades</Text>
-            {combatant.skills.map((skill: any) => {
-              const actionKey = getActionKey(skill.actionType || skill.action);
-              const isAvailable = actionKey ? turnActions[actionKey] : true;
-              const hasFocus = combatant.focus.current >= skill.cost;
-              const canUse = isAvailable && hasFocus;
-
+            {combatant.skills.map((skill: Skill) => {
               return (
-                <TouchableOpacity
-                  key={skill.id || Math.random()}
-                  style={[styles.skillRow, !canUse && { opacity: 0.5 }]}
-                  disabled={!canUse}
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  character={combatant}
                   onPress={() => handleUseSkill(skill)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.skillName}>{skill.name}</Text>
-                    <Text
-                      style={[
-                        styles.skillType,
-                        { color: getActionColor(skill.actionType, colors) },
-                      ]}
-                    >
-                      {skill.actionType}
-                    </Text>
-                    <Text style={styles.detailText}>{skill.description}</Text>
-                  </View>
-                  <View style={styles.skillCost}>
-                    <Text style={{ fontWeight: "bold", color: colors.text }}>
-                      {skill.cost} Foco
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                  showAlert={showAlert}
+                />
               );
             })}
           </View>
@@ -1061,13 +751,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     </ScrollView>
   );
 };
-
-const InfoRow = ({ label, text, color, styles }: any) => (
-  <View style={styles.infoRow}>
-    <Text style={[styles.infoLabel, { color }]}>{label}:</Text>
-    <Text style={styles.infoText}>{text}</Text>
-  </View>
-);
 
 const getStyles = (colors: any, isDark: any) =>
   StyleSheet.create({
