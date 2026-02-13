@@ -8,7 +8,12 @@ import React, {
   useState,
 } from "react";
 import { CLASS_DATA } from "../data/classData"; // <--- 1. IMPORTANTE: Importar os dados
-import { CharacterClass, Combatant, NpcTemplate } from "../types/rpg";
+import {
+  CharacterClass,
+  Combatant,
+  GameEvent,
+  NpcTemplate,
+} from "../types/rpg";
 
 interface CampaignContextType {
   combatants: Combatant[];
@@ -52,6 +57,8 @@ interface CampaignContextType {
   logs: string[];
   setLogs: React.Dispatch<React.SetStateAction<string[]>>;
   addLog: (message: string) => void;
+  lastEvent: GameEvent | null;
+  setLastEvent: React.Dispatch<React.SetStateAction<GameEvent | null>>;
 }
 
 const CampaignContext = createContext<CampaignContextType>(
@@ -65,6 +72,8 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
 
   // --- 2. CARREGAR DADOS AO INICIAR ---
   useEffect(() => {
@@ -350,6 +359,8 @@ export const CampaignProvider = ({ children }: { children: ReactNode }) => {
         logs,
         setLogs,
         addLog,
+        lastEvent,
+        setLastEvent,
       }}
     >
       {children}

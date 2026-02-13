@@ -76,7 +76,6 @@ export default function InventoryScreen() {
   // Salva a edição do item da mochila
   const handleSaveItemEdit = () => {
     if (!selectedItem || !targetItemName.trim()) return;
-    console.log("EDITANDO ITEM");
 
     updateItem(selectedItem.id, {
       name: targetItemName,
@@ -116,7 +115,6 @@ export default function InventoryScreen() {
   // --- HANDLERS MOCHILA ---
   const handleAddItem = () => {
     // 1. Usar targetItemName (que é o que o Input atualiza)
-    console.log("ADICIONANDO ITEM", targetItemName.trim());
 
     if (!targetItemName.trim()) return;
 

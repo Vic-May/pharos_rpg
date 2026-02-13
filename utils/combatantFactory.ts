@@ -1,4 +1,10 @@
-import { Character, Combatant, NpcTemplate } from "@/types/rpg";
+import {
+  Character,
+  Combatant,
+  CombatWeaponData,
+  EquipmentItem,
+  NpcTemplate,
+} from "@/types/rpg";
 import { generateSafeId } from "@/utils/stringUtils";
 
 const playerArmor = (char: Character) => {
@@ -20,29 +26,68 @@ const playerArmor = (char: Character) => {
 
   return ac;
 };
+
+const extractWeaponData = (
+  item: EquipmentItem,
+  defaultName: string,
+  defaultDamage: string,
+): CombatWeaponData => {
+  const isFinesse = item.stats?.toLowerCase().includes("finesse");
+  const isRanged =
+    item.name !== "Desarmado" && item.range && item.range !== "Corpo a Corpo";
+
+  // Lógica de atributo: Ranged/Finesse usa Destreza, resto Força
+  let attr: "Força" | "Destreza" = "Força";
+  if (isRanged || isFinesse) attr = "Destreza";
+
+  let finalDamage = defaultDamage;
+
+  if (item.damage) {
+    // 1. Prioridade: Campo oficial de dano
+    finalDamage = item.damage;
+  } else if (item.stats && /\d+d\d+/.test(item.stats)) {
+    // 2. Fallback: Se 'stats' parecer um dado (ex: "1d8+2"), usa ele
+    // Isso resolve o seu caso atual onde o dano está em 'stats'
+    finalDamage = item.stats;
+  }
+
+  return {
+    name: item.name || defaultName,
+    damage: finalDamage,
+    attribute: attr,
+    attackBonus: 0, // Implementar lógica de itens mágicos se houver
+    range: item.range || "Corpo a Corpo",
+  };
+};
+
 // --- CONVERSOR: PLAYER -> COMBATANT ---
 export const playerToCombatant = (
   char: Character,
   initiativeRoll: number,
 ): Combatant => {
   // Cria um resumo do equipamento para mostrar no combate
-  const equipSummary = [
-    char.equipment.meleeWeapon?.name,
-    char.equipment.rangedWeapon?.name,
-    char.equipment.armor?.name,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  console.log("AAAAAAAAAAAA: ", char.equipment.meleeWeapon);
+  const meleeData = extractWeaponData(
+    char.equipment.meleeWeapon,
+    "Soco",
+    "1d4", // Dano base desarmado
+  );
+
+  const rangedData = extractWeaponData(
+    char.equipment.rangedWeapon,
+    "Pedra",
+    "1d4",
+  );
 
   return {
-    id: char.name, // Player geralmente usa o próprio nome como ID único ou char.id
+    id: generateSafeId(char.name), // Player geralmente usa o próprio nome como ID único ou char.id
     name: char.name,
     baseName: char.name,
     type: "player",
     image: char.image,
 
     // Stats
-    hp: { ...char.stats.hp }, // Copia para não alterar o original por referência
+    hp: { ...char.stats.hp },
     focus: { ...char.stats.focus },
     armorClass: playerArmor(char),
     initiative: initiativeRoll,
@@ -60,7 +105,10 @@ export const playerToCombatant = (
     turnActions: { standard: true, bonus: true, reaction: true },
     deathSaves: { successes: 0, failures: 0 },
 
-    equipmentSummary: equipSummary,
+    weapons: {
+      melee: meleeData,
+      ranged: rangedData,
+    },
     // actionsDescription: "Ações do Jogador...", // Pode deixar vazio ou automatizar
   };
 };
@@ -75,8 +123,9 @@ export const npcToCombatant = (
   const uniqueName = `${npc.name} #${instanceId}`;
 
   return {
-    id: generateSafeId(uniqueName), // Gera ID único para o combate
+    id: generateSafeId(uniqueName),
     name: uniqueName,
+    image: npc.image,
     baseName: npc.name,
     type: "npc",
 
@@ -95,6 +144,7 @@ export const npcToCombatant = (
 
     turnActions: { standard: true, bonus: true, reaction: true },
     deathSaves: { successes: 0, failures: 0 },
+    weapons: {},
 
     equipmentSummary: npc.equipment, // Já é string no NPC
     actionsDescription: npc.actions,

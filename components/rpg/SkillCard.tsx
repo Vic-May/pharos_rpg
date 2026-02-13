@@ -3,15 +3,16 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // Seus imports
 import { useTheme } from "@/context/ThemeContext";
-import { Skill } from "@/types/rpg";
-import { getActionKey } from "@/utils/rpgUtils";
+import { Character, Combatant, Skill } from "@/types/rpg";
+import { getActionColor, getActionKey } from "@/utils/rpgUtils";
 
 interface SkillCardProps {
   skill: Skill;
-  updateStat: (stat: "hp" | "focus", value: number) => void;
-  character: any;
-  toggleAction: (type: "standard" | "bonus" | "reaction") => void;
+  updateStat?: (stat: "hp" | "focus", value: number) => void;
+  character: Character | Combatant;
+  toggleAction?: (type: "standard" | "bonus" | "reaction") => void;
   showAlert: (title: string, msg: string) => void;
+  onPress?: (skill: Skill) => void; // <--- Nova prop
 }
 
 export const SkillCard = ({
@@ -20,21 +21,13 @@ export const SkillCard = ({
   character,
   toggleAction,
   showAlert,
+  onPress,
 }: SkillCardProps) => {
   const [expanded, setExpanded] = useState(false);
 
   // 1. BLINDAGEM DO TEMA
   // Se useTheme falhar ou não tiver cores, usa um fallback para não travar o app
-  const themeContext = useTheme();
-  const colors = themeContext?.colors || {
-    surface: "#fff",
-    text: "#000",
-    primary: "blue",
-    border: "#ccc",
-    inputBg: "#eee",
-    textSecondary: "#666",
-    error: "red",
-  };
+  const { colors } = useTheme();
 
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -43,10 +36,16 @@ export const SkillCard = ({
 
   // Garante que character e turnActions existam antes de tentar ler
   const turnActions = character?.turnActions || {};
-  const stats = character?.stats || { focus: { current: 0 } };
+  const isCharacter = "stats" in character;
+
+  // Se for Character, pega de .stats.focus. Se for Combatant, pega de .focus
+  const focusData = isCharacter
+    ? (character as Character).stats.focus
+    : (character as Combatant).focus;
+  // const stats = character?.stats || character?.focus;
 
   const actionKey = getActionKey(skill.actionType);
-  const hasEnoughFocus = (stats.focus?.current || 0) >= (skill.cost || 0);
+  const hasEnoughFocus = (focusData.current || 0) >= (skill.cost || 0);
 
   // Verifica disponibilidade da ação de forma segura
   const isActionAvailable = actionKey ? turnActions[actionKey] : true;
@@ -73,8 +72,15 @@ export const SkillCard = ({
       return;
     }
 
-    updateStat("focus", -(skill.cost || 0));
-    if (actionKey) toggleAction(actionKey);
+    if (onPress) {
+      onPress(skill);
+      return;
+    }
+
+    if (updateStat && toggleAction) {
+      updateStat("focus", -(skill.cost || 0));
+      if (actionKey) toggleAction(actionKey);
+    }
   };
 
   const getButtonText = () => {
@@ -88,11 +94,19 @@ export const SkillCard = ({
       style={styles.skillCard}
       onPress={() => setExpanded(!expanded)}
       activeOpacity={0.7}
+      // disabled={!canUse}
     >
       <View style={styles.skillHeader}>
         <View>
           <Text style={styles.skillName}>{skill.name}</Text>
-          <Text style={styles.skillType}>{skill.actionType || "Passiva"}</Text>
+          <Text
+            style={[
+              styles.skillType,
+              { color: getActionColor(skill.actionType, colors) },
+            ]}
+          >
+            {skill.actionType || "Passiva"}
+          </Text>
         </View>
         <View
           style={[
@@ -151,17 +165,7 @@ const getStyles = (colors: any) =>
       justifyContent: "space-between",
       alignItems: "center",
     },
-    skillName: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    skillType: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
-      textTransform: "capitalize",
-    },
+
     costBadge: {
       backgroundColor: colors.inputBg,
       paddingHorizontal: 8,
@@ -207,5 +211,23 @@ const getStyles = (colors: any) =>
       fontWeight: "bold",
       fontSize: 14,
       textTransform: "uppercase",
+    },
+    skillRow: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    skillName: { fontWeight: "bold", color: colors.text, fontSize: 14 },
+    skillType: { fontSize: 12, color: colors.primary, marginTop: 2 },
+    detailText: { color: colors.textSecondary, fontSize: 12 },
+    skillCost: {
+      justifyContent: "center",
+      paddingLeft: 10,
+      borderLeftWidth: 1,
+      borderColor: colors.border,
     },
   });

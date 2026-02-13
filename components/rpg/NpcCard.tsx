@@ -2,7 +2,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { NpcTemplate } from "@/types/rpg";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface NpcCardProps {
   item: NpcTemplate;
@@ -36,6 +36,14 @@ export const NpcCard = ({
         activeOpacity={0.8}
       >
         <View style={styles.cardHeader}>
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={styles.avatar} />
+          ) : // Opcional: Se não tiver imagem, pode mostrar um ícone genérico ou nada
+          // Aqui optei por nada para manter o layout limpo, ou você pode por um ícone:
+          // <View style={[styles.avatar, { backgroundColor: colors.inputBg, justifyContent: 'center', alignItems: 'center' }]}>
+          //    <Ionicons name="person" size={20} color={colors.textSecondary} />
+          // </View>
+          null}
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{item.name}</Text>
           </View>
@@ -184,7 +192,6 @@ export const NpcCard = ({
   );
 };
 
-// ... Copie os estilos relevantes do arquivo original para cá (getStyles) ...
 const getStyles = (colors: any) =>
   StyleSheet.create({
     card: {
@@ -265,4 +272,13 @@ const getStyles = (colors: any) =>
       borderRadius: 8,
     },
     btnText: { color: "#fff", fontWeight: "bold" },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      marginRight: 12,
+      backgroundColor: colors.inputBg, // Cor de fundo enquanto carrega
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
   });

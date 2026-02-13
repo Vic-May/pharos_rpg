@@ -1,83 +1,149 @@
 import { useTheme } from "@/context/ThemeContext";
-import { Spell } from "@/types/rpg";
-import { getCircleTheme } from "@/utils/spellUtils";
-import { Ionicons } from "@expo/vector-icons";
+import { Character, Combatant, Spell } from "@/types/rpg";
+import { getActionColor, getActionKey } from "@/utils/rpgUtils";
+import { getSchoolTheme } from "@/utils/spellUtils";
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface SpellCardProps {
   spell: Spell;
-  currentFocus: number;
-  onCast: (cost: number) => void;
-  onForget: () => void;
+  character: Character | Combatant;
+  onCast: (spell: Spell) => void;
+  onForget?: (spellId: string) => void;
 }
 
 export const SpellCard = ({
   spell,
-  currentFocus,
+  character,
   onCast,
   onForget,
 }: SpellCardProps) => {
+  const [expanded, setExpanded] = useState(false);
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const [expanded, setExpanded] = useState(false);
+  const theme = getSchoolTheme(spell.school); // spell.school deve ser "Fogo", "Agua", etc.
+  const IconLib = theme.iconLib; //
 
-  const theme = getCircleTheme(spell.circle);
-  const castCost = spell.circle * 2; // Regra de custo
-  const canCast = currentFocus >= castCost;
+  // 1. Normalização de Dados (Online vs Offline)
+  const isCharacter = "stats" in character;
+  const focusData = isCharacter
+    ? (character as Character).stats.focus
+    : (character as Combatant).focus;
+
+  const currentFocus = focusData?.current || 0;
+  const turnActions = character.turnActions || {};
+
+  // 2. Validações
+  const actionKey = getActionKey(spell.actionType || "standard");
+  const hasAction = actionKey ? turnActions[actionKey] : true;
+  const hasFocus = currentFocus >= spell.cost;
+
+  // Nota: Permitimos expandir mesmo se não puder usar, para ver a descrição
+  // Mas o botão de ação ficará desabilitado
+  const canCast = hasAction && hasFocus;
+
+  const getButtonText = () => {
+    if (!hasFocus) return "FOCO INSUFICIENTE";
+    if (!hasAction) return "SEM AÇÃO DISPONÍVEL";
+    return "CONJURAR MAGIA";
+  };
 
   return (
     <TouchableOpacity
-      style={[styles.card, { borderLeftColor: theme.primary }]}
-      activeOpacity={0.9}
+      style={[
+        styles.card,
+        { borderColor: theme.color }, // <--- Borda com a cor da escola
+      ]}
       onPress={() => setExpanded(!expanded)}
+      activeOpacity={0.7}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.headerTop}>
-          <Text style={styles.spellName}>{spell.name}</Text>
-          <View style={[styles.schoolBadge, { backgroundColor: theme.light }]}>
-            <Text style={[styles.schoolText, { color: theme.primary }]}>
-              {spell.school}
+      {/* --- CABEÇALHO (Sempre visível) --- */}
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 4,
+            }}
+          >
+            {/* Ícone da Escola */}
+            <IconLib name={theme.icon} size={16} color={theme.color} />
+
+            {/* Nome da Magia na cor da escola */}
+            <Text style={[styles.name, { color: theme.color }]}>
+              {spell.name}
             </Text>
+          </View>
+
+          {/* Linha de Tags (Tipo + Custo Ação) */}
+          <View style={styles.tagsRow}>
+            <Text
+              style={[
+                styles.skillType,
+                { color: getActionColor(spell.actionType, colors) },
+              ]}
+            >
+              {spell.actionType || "Passiva"} |
+            </Text>
+            <Text style={[styles.typeText, { color: theme.color }]}>
+              {spell.school || "Arcano"}
+            </Text>
+            {spell.isAttack && (
+              <Text style={styles.attackTag}>
+                ATAQUE ({spell.damageFormula})
+              </Text>
+            )}
+            {spell.isHealing && (
+              <Text style={styles.healTag}>CURA ({spell.healFormula})</Text>
+            )}
           </View>
         </View>
-        {!expanded && (
-          <Text style={styles.summaryEffect} numberOfLines={1}>
-            {spell.effect}
+
+        {/* Badge de Custo */}
+        <View style={[styles.costBadge, !hasFocus && styles.costBadgeError]}>
+          <Text style={[styles.costText, !hasFocus && styles.costTextError]}>
+            {spell.cost} Foco
           </Text>
-        )}
+        </View>
       </View>
 
+      {/* --- CORPO EXPANDÍVEL --- */}
       {expanded && (
-        <View style={styles.cardBody}>
-          <View style={styles.infoRow}>
-            <Ionicons name="flash" size={14} color={theme.primary} />
-            <Text style={styles.effectLabel}>
-              Efeito: <Text style={styles.effectValue}>{spell.effect}</Text>
+        <View style={styles.body}>
+          <Text style={styles.description}>
+            {spell.description || "Sem descrição disponível."}
+          </Text>
+
+          {/* Detalhes Técnicos (Opcional) */}
+          {/* <View style={styles.detailsRow}>
+            <Text style={styles.detailItem}>
+              Alcance: {spell.range || "Pessoal"}
             </Text>
-          </View>
-          <Text style={styles.description}>{spell.description}</Text>
+            <Text style={styles.detailItem}>
+              Duração: {spell.duration || "Instantânea"}
+            </Text>
+          </View> */}
 
-          <View style={styles.actionsFooter}>
-            <TouchableOpacity style={styles.forgetBtn} onPress={onForget}>
-              <Ionicons name="trash-outline" size={20} color={colors.error} />
-            </TouchableOpacity>
-
+          {/* Botão de Ação */}
+          <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={[
-                styles.castBtn,
-                !canCast && styles.castBtnDisabled,
-                { backgroundColor: canCast ? theme.primary : colors.border },
-              ]}
-              onPress={() => canCast && onCast(castCost)}
+              style={[styles.castButton, !canCast && styles.castButtonDisabled]}
+              onPress={() => onCast(spell)}
               disabled={!canCast}
             >
-              <Text style={styles.castBtnText}>
-                {canCast
-                  ? `CONJURAR (-${castCost} Foco)`
-                  : `Custo: ${castCost} Foco`}
-              </Text>
+              <Text style={styles.castButtonText}>{getButtonText()}</Text>
             </TouchableOpacity>
+
+            {onForget && (
+              <TouchableOpacity
+                style={styles.forgetButton}
+                onPress={() => onForget(spell.id)}
+              >
+                <Text style={styles.forgetButtonText}>Esquecer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -89,76 +155,133 @@ const getStyles = (colors: any) =>
   StyleSheet.create({
     card: {
       backgroundColor: colors.surface,
-      marginHorizontal: 16,
-      marginVertical: 6,
+      marginBottom: 10,
       borderRadius: 8,
       padding: 16,
-      elevation: 2,
-      borderLeftWidth: 4,
       borderWidth: 1,
-      borderColor: colors.border,
+      // borderColor: "#b39ddb", // Roxo mágico para diferenciar de skills físicas
+      elevation: 1,
     },
-    cardHeader: { marginBottom: 4 },
-    headerTop: {
+    header: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+    },
+    name: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: "#b39ddb", // Título Roxo
       marginBottom: 4,
     },
-    spellName: { fontSize: 16, fontWeight: "bold", color: colors.text },
-    schoolBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-    schoolText: { fontSize: 10, textTransform: "uppercase", fontWeight: "700" },
-    summaryEffect: {
+    tagsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      alignItems: "center",
+    },
+    typeText: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    attackTag: {
+      fontSize: 10,
+      color: colors.error,
+      fontWeight: "bold",
+      backgroundColor: colors.error + "15",
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    healTag: {
+      fontSize: 10,
+      color: colors.success,
+      fontWeight: "bold",
+      backgroundColor: colors.success + "15",
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    // Badge de Custo
+    costBadge: {
+      backgroundColor: colors.inputBg,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 6,
+      marginLeft: 8,
+    },
+    costBadgeError: {
+      backgroundColor: colors.error + "15",
+      borderWidth: 1,
+      borderColor: colors.error,
+    },
+    costText: {
+      fontSize: 12,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    costTextError: {
+      color: colors.error,
+    },
+    // Corpo Expandido
+    body: {
+      marginTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border + "40", // Mais sutil
+      paddingTop: 12,
+    },
+    description: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.textSecondary,
+      marginBottom: 12,
+    },
+    detailsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 16,
+      backgroundColor: colors.inputBg,
+      padding: 8,
+      borderRadius: 4,
+    },
+    detailItem: {
       fontSize: 12,
       color: colors.textSecondary,
       fontStyle: "italic",
     },
-    cardBody: {
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-    },
-    infoRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 8,
-      gap: 6,
-    },
-    effectLabel: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-    },
-    effectValue: { fontWeight: "normal", color: colors.text },
-    description: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      lineHeight: 20,
-      textAlign: "justify",
-      marginBottom: 16,
-    },
-    actionsFooter: { flexDirection: "row", alignItems: "center", gap: 10 },
-    forgetBtn: {
-      padding: 10,
-      backgroundColor: colors.error + "15",
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: colors.error + "50",
-    },
-    castBtn: {
-      flex: 1,
+    // Botão de Conjurar
+    skillType: { fontSize: 12 },
+    castButton: {
+      backgroundColor: "#7e57c2", // Roxo Mágico (Deep Purple 400)
       paddingVertical: 12,
-      borderRadius: 8,
+      borderRadius: 6,
       alignItems: "center",
     },
-    castBtnDisabled: { opacity: 0.7 },
-    castBtnText: {
+    castButtonDisabled: {
+      backgroundColor: colors.border,
+    },
+    castButtonText: {
       color: "#fff",
       fontWeight: "bold",
-      textTransform: "uppercase",
       fontSize: 14,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    forgetButton: {
+      paddingVertical: 12,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: 6,
+      backgroundColor: "transparent",
+    },
+    forgetButtonText: {
+      color: colors.error,
+      fontWeight: "bold",
+      fontSize: 12,
+      textTransform: "uppercase",
+    },
+    actionsContainer: {
+      marginTop: 12,
+      gap: 8, // Espaçamento entre os botões
     },
   });

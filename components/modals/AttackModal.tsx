@@ -1,5 +1,6 @@
 import { useTheme } from "@/context/ThemeContext";
 import { Combatant } from "@/types/rpg";
+import { rollDiceString } from "@/utils/diceUtils";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -12,28 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-// --- HELPER: Rolar Dados ---
-const rollFormula = (formula: string): number => {
-  try {
-    const clean = formula.toLowerCase().replace(/\s/g, "");
-    const parts = clean.split("+");
-    let total = 0;
-    for (const part of parts) {
-      if (part.includes("d")) {
-        const [count, faces] = part.split("d").map(Number);
-        for (let i = 0; i < (count || 1); i++) {
-          total += Math.floor(Math.random() * faces) + 1;
-        }
-      } else {
-        total += parseInt(part) || 0;
-      }
-    }
-    return total;
-  } catch (e) {
-    return 0;
-  }
-};
 
 // --- HELPER: Status de Vida (Névoa de Guerra) ---
 const getHealthStatus = (current: number, max: number) => {
@@ -53,7 +32,7 @@ interface AttackModalProps {
     targetId: string,
     hitTotal: number,
     damageTotal: number,
-    isCrit: boolean
+    isCrit: boolean,
   ) => void;
   isGm: boolean; // <--- A chave para a visibilidade
   initialBonus?: string;
@@ -127,9 +106,10 @@ export const AttackModal = ({
     setIsCrit(critical);
     setHitValue(String(totalHit));
 
-    let damage = rollFormula(damageFormula);
-    if (critical) damage = Math.floor(damage * 1.5);
-    setDmgValue(String(damage));
+    const damageRoll = rollDiceString(damageFormula, critical);
+    let finalDamage = damageRoll.total;
+
+    setDmgValue(String(finalDamage));
   };
 
   const handleSubmit = () => {
@@ -162,14 +142,13 @@ export const AttackModal = ({
           {step === 1 && (
             <FlatList
               data={potentialTargets.filter(
-                (t) => t.id !== attacker.id && t.hp.current > 0
+                (t) => t.id !== attacker.id && t.hp.current > 0,
               )}
               keyExtractor={(item) => item.id}
               style={{ maxHeight: 400 }}
               renderItem={({ item }) => {
                 // Lógica de Exibição
                 const status = getHealthStatus(item.hp.current, item.hp.max);
-                const showExactData = isGm || item.type === "player"; // Player vê dados exatos de outros Players? Geralmente não, mas ajustável. Aqui vou seguir o prompt: GM vê tudo.
 
                 return (
                   <TouchableOpacity
@@ -242,7 +221,7 @@ export const AttackModal = ({
                     Status:{" "}
                     {getHealthStatus(
                       selectedTarget.hp.current,
-                      selectedTarget.hp.max
+                      selectedTarget.hp.max,
                     )}
                   </Text>
                 )}
@@ -275,16 +254,40 @@ export const AttackModal = ({
               <View style={styles.divider} />
 
               <TouchableOpacity
-                style={styles.autoRollBtn}
+                style={[
+                  styles.autoRollBtn,
+                  isCrit && { backgroundColor: "#FFbc00" }, // Dourado no botão de rolar se for crítico
+                ]}
                 onPress={handleAutoRoll}
               >
                 <MaterialCommunityIcons
                   name="dice-d20"
                   size={24}
-                  color="#fff"
+                  color={isCrit ? "#000" : "#fff"}
                 />
-                <Text style={styles.autoRollText}>ROLAR DADOS (APP)</Text>
+                <Text
+                  style={[styles.autoRollText, isCrit && { color: "#000" }]}
+                >
+                  {isCrit ? "RE-ROLAR (DADOS)" : "ROLAR DADOS (APP)"}
+                </Text>
               </TouchableOpacity>
+
+              {/* --- NOVO: AVISO VISUAL DE CRÍTICO --- */}
+              {isCrit && (
+                <View style={styles.critBanner}>
+                  <MaterialCommunityIcons
+                    name="star-four-points"
+                    size={20}
+                    color="#FFbc00"
+                  />
+                  <Text style={styles.critText}>ACERTO CRÍTICO!</Text>
+                  <MaterialCommunityIcons
+                    name="star-four-points"
+                    size={20}
+                    color="#FFbc00"
+                  />
+                </View>
+              )}
 
               <Text style={styles.orText}>— OU INSIRA MANUALMENTE —</Text>
 
@@ -296,9 +299,11 @@ export const AttackModal = ({
                       styles.input,
                       {
                         borderColor: hitValue
-                          ? parseInt(hitValue) >= selectedTarget.armorClass
-                            ? colors.success
-                            : colors.error
+                          ? isGm
+                            ? parseInt(hitValue) >= selectedTarget.armorClass
+                              ? colors.success
+                              : colors.error
+                            : colors.border
                           : colors.border,
                       },
                     ]}
@@ -323,16 +328,16 @@ export const AttackModal = ({
               </View>
 
               {/* Feedback Visual: ACERTOU/ERROU */}
-              {/* O Jogador vê o feedback (Quality of Life), mas não vê a CA exata acima */}
               {hitValue !== "" && (
                 <View
                   style={[
                     styles.resultBanner,
                     {
-                      backgroundColor:
-                        parseInt(hitValue) >= selectedTarget.armorClass
+                      backgroundColor: isGm
+                        ? parseInt(hitValue) >= selectedTarget.armorClass
                           ? colors.success + "20"
-                          : colors.error + "20",
+                          : colors.error + "20"
+                        : colors.border,
                     },
                   ]}
                 >
@@ -340,26 +345,35 @@ export const AttackModal = ({
                     style={[
                       styles.resultText,
                       {
-                        color:
-                          parseInt(hitValue) >= selectedTarget.armorClass
+                        color: isGm
+                          ? parseInt(hitValue) >= selectedTarget.armorClass
                             ? colors.success
-                            : colors.error,
+                            : colors.error
+                          : colors.text,
                       },
                     ]}
                   >
-                    {parseInt(hitValue) >= selectedTarget.armorClass
-                      ? "ACERTOU!"
-                      : "ERROU!"}
+                    {isGm
+                      ? parseInt(hitValue) >= selectedTarget.armorClass
+                        ? "ACERTOU!"
+                        : "ERROU!"
+                      : "ATAQUE ENVIADO"}
                   </Text>
                 </View>
               )}
 
               <TouchableOpacity
-                style={[styles.confirmBtn, !hitValue && { opacity: 0.5 }]}
+                style={[
+                  styles.confirmBtn,
+                  !hitValue && { opacity: 0.5 },
+                  isCrit && styles.confirmBtnCrit, // Adiciona estilo se for critico
+                ]}
                 onPress={handleSubmit}
                 disabled={!hitValue}
               >
-                <Text style={styles.confirmText}>CONFIRMAR ATAQUE</Text>
+                <Text style={[styles.confirmText, isCrit && { color: "#000" }]}>
+                  {isCrit ? "DESFERIR CRÍTICO!" : "CONFIRMAR ATAQUE"}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           )}
@@ -478,4 +492,32 @@ const getStyles = (colors: any) =>
       alignItems: "center",
     },
     confirmText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+    critBanner: {
+      flexDirection: "row",
+      backgroundColor: "rgba(255, 188, 0, 0.1)", // Fundo Dourado bem clarinho
+      padding: 12,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+      borderWidth: 1,
+      borderColor: "#FFbc00",
+      gap: 10,
+    },
+    critText: {
+      color: "#FFbc00",
+      fontWeight: "900",
+      fontSize: 18,
+      letterSpacing: 2,
+    },
+    confirmBtnCrit: {
+      backgroundColor: "#FFbc00", // Dourado forte
+      borderWidth: 2,
+      borderColor: "#B8860B", // Dourado escuro na borda para dar profundidade
+      elevation: 5, // Sombra no Android
+      shadowColor: "#FFbc00", // Sombra no iOS
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.5,
+      shadowRadius: 4,
+    },
   });

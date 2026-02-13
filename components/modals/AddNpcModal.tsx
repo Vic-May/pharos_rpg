@@ -13,8 +13,10 @@ import {
 } from "@/types/rpg";
 import { formatModString } from "@/utils/stringUtils";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -25,6 +27,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SpellSelectorModal } from "./SpellSelectorModal";
+
+const CUSTOM_CLASSES = ["Monstro", "Outros"];
 
 interface AddNpcModalProps {
   visible: boolean;
@@ -42,10 +46,12 @@ export const AddNpcModal = ({
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const [image, setImage] = useState("");
+
   // --- ESTADOS DO FORMULÁRIO (Copiados do NpcScreen) ---
   const [formTab, setFormTab] = useState<"general" | "details">("general");
   const [name, setName] = useState("");
-  const [npcClass, setNpcClass] = useState<CharacterClass>();
+  const [npcClass, setNpcClass] = useState<CharacterClass | string>();
   const [level, setLevel] = useState("1");
   const [subline, setSubline] = useState("");
   const [hp, setHp] = useState("");
@@ -90,7 +96,7 @@ export const AddNpcModal = ({
     if (visible) {
       if (initialData) {
         // --- MODO EDIÇÃO ---
-        console.log("Dados recebidos para edição:", initialData); // Debug útil
+        setImage(initialData.image || "");
 
         setName(initialData.name || "");
 
@@ -132,6 +138,7 @@ export const AddNpcModal = ({
         setNpcSpells(initialData.spells || []); // Carregar magias existentes (se houver na interface NpcTemplate)
       } else {
         // --- MODO CRIAÇÃO (RESET) ---
+        setImage("");
         setName("");
         setLevel("1");
         setNpcClass(undefined);
@@ -163,30 +170,53 @@ export const AddNpcModal = ({
   }, [visible, initialData]);
 
   useEffect(() => {
-    // Só carrega automático se NÃO estivermos editando um NPC existente
-    // (para não sobrescrever customizações de um NPC salvo)
-    // OU se você quiser forçar a atualização, remova a checagem de initialData.
-    if (!initialData && npcClass && CLASS_DATA[npcClass as CharacterClass]) {
-      const data = CLASS_DATA[npcClass as CharacterClass];
-      const numericLevel = parseInt(level) || 1;
+    // Só roda se NÃO estiver editando (para não sobrescrever dados salvos)
+    if (!initialData && npcClass) {
+      // A. Se for Customizado (Monstro/Outros), LIMPA as listas automáticas
+      if (CUSTOM_CLASSES.includes(npcClass)) {
+        setNpcSkills([]);
+        setNpcStances([]);
+        return; // PARE AQUI! Não busque no CLASS_DATA
+      }
 
-      // Filtra skills por nível
-      const autoSkills = data.skills.filter(
-        (s) => (s.level || 1) <= numericLevel,
-      );
-      const autoStances = data.stances;
+      // B. Se for Classe Padrão, carrega do arquivo
+      if (CLASS_DATA[npcClass as CharacterClass]) {
+        const data = CLASS_DATA[npcClass as CharacterClass];
+        const numericLevel = parseInt(level) || 1;
 
-      setNpcSkills(autoSkills);
-      setNpcStances(autoStances);
+        const autoSkills = data.skills.filter(
+          (s) => (s.level || 1) <= numericLevel,
+        );
+        const autoStances = data.stances;
+
+        setNpcSkills(autoSkills);
+        setNpcStances(autoStances);
+      }
     }
   }, [npcClass, level, initialData]);
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.3,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setImage(base64Img);
+    }
+  };
 
   const handleSave = () => {
     const data = {
       name,
+      image,
       subline,
       maxHp: parseInt(hp) || 10,
-      level: parseInt(level) || 1, // <--- ADICIONE ESTA CONVERSÃO
+      level: parseInt(level) || 1,
       //   hpFormula,
       class: npcClass,
       ancestry: ancestry,
@@ -248,7 +278,6 @@ export const AddNpcModal = ({
           </TouchableOpacity>
         </View>
 
-        {/* ... Lógica de Abas e Formulário (Copiado do seu código original) ... */}
         <View style={styles.tabBar}>
           <TouchableOpacity
             onPress={() => setFormTab("general")}
@@ -282,6 +311,29 @@ export const AddNpcModal = ({
           {/* ABA GERAL */}
           {formTab === "general" && (
             <>
+              <View style={styles.imageContainer}>
+                <TouchableOpacity
+                  onPress={pickImage}
+                  activeOpacity={0.8}
+                  style={styles.avatarContainer}
+                >
+                  {image ? (
+                    <Image source={{ uri: image }} style={styles.avatarImage} />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Ionicons
+                        name="camera"
+                        size={32}
+                        color={colors.iconDefault}
+                      />
+                      <Text style={styles.avatarText}>Foto</Text>
+                    </View>
+                  )}
+                  <View style={styles.editBadge}>
+                    <Ionicons name="pencil" size={12} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </View>
               <Text style={styles.label}>Nome</Text>
               <TextInput
                 style={styles.input}
@@ -305,21 +357,29 @@ export const AddNpcModal = ({
                 </View>
               </View>
 
-              {/* SELETOR DE CLASSE (Igual Player) */}
-              <Text style={styles.label}>Classe</Text>
+              <Text style={styles.label}>Classe / Tipo</Text>
               <View style={styles.chipContainer}>
-                {ALL_CLASSES.map((cls) => {
+                {/* Combina as classes padrão com as customizadas */}
+                {[...ALL_CLASSES, ...CUSTOM_CLASSES].map((cls) => {
                   const isSelected = npcClass === cls;
+                  // Estilo diferente para as customizadas (Opcional)
+                  const isCustom = CUSTOM_CLASSES.includes(cls);
+
                   return (
                     <TouchableOpacity
                       key={cls}
-                      style={[styles.chip, isSelected && styles.chipActive]}
+                      style={[
+                        styles.chip,
+                        isSelected && styles.chipActive,
+                        isCustom && !isSelected && { borderColor: "#fb8c00" }, // Laranja sutil para monstros
+                      ]}
                       onPress={() => setNpcClass(cls)}
                     >
                       <Text
                         style={[
                           styles.chipText,
                           isSelected && styles.chipTextActive,
+                          isCustom && !isSelected && { color: "#fb8c00" },
                         ]}
                       >
                         {cls}
@@ -329,7 +389,6 @@ export const AddNpcModal = ({
                 })}
               </View>
 
-              {/* SELETOR DE ANCESTRALIDADE (Igual Player) */}
               <Text style={styles.label}>Ancestralidade</Text>
               <View style={styles.chipContainer}>
                 {ANCESTRIES.map((anc) => {
@@ -446,18 +505,29 @@ export const AddNpcModal = ({
                 placeholderTextColor={colors.textSecondary}
               />
 
-              <Text style={styles.label}>Ações</Text>
+              <Text style={styles.label}>Ações & Habilidades</Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  marginBottom: 4,
+                }}
+              >
+                {CUSTOM_CLASSES.includes(npcClass || "")
+                  ? "Digite aqui os ataques, posturas e habilidades do monstro."
+                  : "Ações extras ou descrição."}
+              </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 multiline
                 value={actions}
                 onChangeText={setActions}
                 placeholderTextColor={colors.textSecondary}
+                placeholder="Ex: Ataque de Garra +5 (1d6+3)..."
               />
 
               <View style={styles.divider} />
-
-              {/* SEÇÃO DE MAGIAS */}
+              {/* Lógica de Magias e Atributos mantida... */}
               <View
                 style={{
                   flexDirection: "row",
@@ -474,57 +544,37 @@ export const AddNpcModal = ({
                   <Text style={styles.addBtnText}>+ Magia</Text>
                 </TouchableOpacity>
               </View>
-
-              {npcSpells.length === 0 ? (
-                <Text
-                  style={{
-                    color: colors.textSecondary,
-                    fontStyle: "italic",
-                    marginBottom: 20,
-                  }}
-                >
-                  Nenhuma magia.
-                </Text>
-              ) : (
-                npcSpells.map((spell) => (
-                  <View key={spell.id} style={styles.miniItem}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.miniItemTitle}>{spell.name}</Text>
-                      <Text style={styles.miniItemDesc}>
-                        {spell.circle}º Círculo • {spell.school}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => removeSpell(spell.id)}>
-                      <Ionicons
-                        name="trash-outline"
-                        size={20}
-                        color={colors.error}
-                      />
-                    </TouchableOpacity>
+              {npcSpells.map((spell) => (
+                <View key={spell.id} style={styles.miniItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.miniItemTitle}>{spell.name}</Text>
+                    <Text style={styles.miniItemDesc}>
+                      {spell.circle}º Círculo • {spell.school}
+                    </Text>
                   </View>
-                ))
-              )}
+                  <TouchableOpacity onPress={() => removeSpell(spell.id)}>
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color={colors.error}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ))}
 
               <View style={styles.divider} />
-
               <View style={styles.attrFormGrid}>
                 {ATTRIBUTE_ORDER.map((key) => (
                   <View key={key} style={styles.attrInputBox}>
-                    {/* Label (Ex: FOR, DES) */}
                     <Text style={styles.labelCenter}>
                       {key.substring(0, 3).toUpperCase()}
                     </Text>
-
-                    {/* Input do Valor */}
                     <TextInput
                       style={[styles.input, { textAlign: "center" }]}
                       keyboardType="numeric"
-                      // Acessa .value, pois attrs[key] agora é um objeto
                       value={String(attrs[key].value)}
                       onChangeText={(t) => handleAttributeChange(key, t)}
                     />
-
-                    {/* Exibição do Modificador */}
                     <Text
                       style={{
                         textAlign: "center",
@@ -532,7 +582,6 @@ export const AddNpcModal = ({
                         fontSize: 12,
                       }}
                     >
-                      {/* Acessa .modifier direto do objeto calculado */}
                       {formatModString(attrs[key].modifier)}
                     </Text>
                   </View>
@@ -711,7 +760,7 @@ const getStyles = (colors: any) =>
       color: colors.text,
       fontSize: 16,
     },
-    textArea: { minHeight: 80, textAlignVertical: "top" },
+    textArea: { minHeight: 150, textAlignVertical: "top" },
     row: { flexDirection: "row", gap: 0 },
 
     attrFormGrid: {
@@ -849,5 +898,73 @@ const getStyles = (colors: any) =>
     chipTextActive: {
       color: "#fff",
       fontWeight: "bold",
+    },
+    imageContainer: {
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    imagePicker: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      overflow: "hidden",
+      backgroundColor: colors.inputBg,
+      borderWidth: 2,
+      borderColor: colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+      position: "relative",
+    },
+    npcImage: {
+      width: "100%",
+      height: "100%",
+    },
+    placeholderImage: {
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    placeholderText: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    editIconBadge: {
+      position: "absolute",
+      bottom: 4,
+      right: 4,
+      backgroundColor: colors.primary,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    avatarContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: colors.surface,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.border,
+    },
+    avatarImage: { width: "100%", height: "100%", borderRadius: 40 },
+    avatarPlaceholder: { alignItems: "center", justifyContent: "center" },
+    avatarText: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
+    editBadge: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      backgroundColor: colors.primary,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.surface,
     },
   });

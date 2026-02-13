@@ -19,11 +19,11 @@ export const CombatLog = ({ logs, colors }: CombatLogProps) => {
     <View
       style={[
         styles.logContainer,
-        { backgroundColor: "#1e1e1e", borderColor: colors.border },
+        { backgroundColor: colors.background, borderColor: colors.primary },
       ]}
     >
       <View style={styles.logHeader}>
-        <Text style={styles.logTitle}>TERMINAL DO SISTEMA</Text>
+        <Text style={[styles.logTitle, {color:colors.text}]}>TERMINAL DO SISTEMA</Text>
       </View>
       <FlatList
         ref={flatListRef}
@@ -32,7 +32,7 @@ export const CombatLog = ({ logs, colors }: CombatLogProps) => {
         style={{ maxHeight: 120 }}
         contentContainerStyle={{ padding: 8 }}
         renderItem={({ item }) => (
-          <Text style={styles.logText}>
+          <Text style={[styles.logText, { color: colors.text }]}>
             <Text style={{ color: colors.primary }}>{"> "}</Text>
             {item}
           </Text>
@@ -59,11 +59,11 @@ const styles = StyleSheet.create({
     padding: 5,
     paddingHorizontal: 10,
   },
-  logTitle: { color: "#888", fontSize: 10, fontWeight: "bold" },
+  logTitle: { fontSize: 10, fontWeight: "bold" },
   logText: {
     fontFamily: "monospace",
     fontSize: 12,
-    color: "#ddd",
+    // color: "#ddd",
     marginBottom: 2,
   },
 });

@@ -109,7 +109,7 @@ export function HealModal({
                     selectedTargetId === item.id && styles.targetNameSelected,
                   ]}
                 >
-                  {item.name} ({item.hp.current}/{item.hp.max} PV)
+                  {item.name} - PV: {Math.round((item.hp.current / item.hp.max) * 100)}% 
                 </Text>
                 {selectedTargetId === item.id && (
                   <Ionicons name="medical" size={20} color="#fff" />
