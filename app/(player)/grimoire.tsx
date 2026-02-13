@@ -158,6 +158,7 @@ export default function GrimoireScreen() {
         onClose={() => setLearnModalVisible(false)}
         onSelect={addSpell}
         learnedSpells={character.spells}
+        character={character}
       />
     </View>
   );

@@ -1,6 +1,7 @@
 import { useTheme } from "@/context/ThemeContext";
 import { MAGIC_SCHOOLS } from "@/data/spellData";
-import { Spell } from "@/types/rpg";
+import { Spell, Character } from "@/types/rpg";
+import { canLearnSpell } from "@/utils/spellUtils";
 import React, { useMemo } from "react";
 import {
   Modal,
@@ -18,6 +19,7 @@ interface SpellSelectorModalProps {
   onClose: () => void;
   onSelect: (spell: Spell) => void;
   learnedSpells?: Spell[]; // Para marcar quais já foram aprendidas
+  character: Character; // Para verificar restrições de raça
 }
 
 export const SpellSelectorModal = ({
@@ -25,9 +27,17 @@ export const SpellSelectorModal = ({
   onClose,
   onSelect,
   learnedSpells = [],
+  character,
 }: SpellSelectorModalProps) => {
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
+
+  const filteredSchools = useMemo(() => {
+    return MAGIC_SCHOOLS.map((school) => ({
+      ...school,
+      spells: school.spells.filter((spell) => canLearnSpell(character, spell)),
+    })).filter((school) => school.spells.length > 0);
+  }, [character]);
 
   return (
     <Modal
@@ -45,7 +55,7 @@ export const SpellSelectorModal = ({
         </View>
 
         <ScrollView contentContainerStyle={styles.modalContent}>
-          {MAGIC_SCHOOLS.map((school) => (
+          {filteredSchools.map((school) => (
             <View key={school.id} style={styles.schoolGroup}>
               <Text style={styles.schoolTitle}>{school.name}</Text>
               <Text style={styles.schoolQuote}>{school.quote}</Text>

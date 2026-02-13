@@ -601,6 +601,20 @@ export const MAGIC_SCHOOLS: MagicSchoolData[] = [
         isAttack: false,
         actionType: "standard",
       },
+      {
+        id: "ceu_folego_cume",
+        name: "O Fôlego do Cume",
+        school: "Céu",
+        circle: 4,
+        description:"O ar ao redor estala, tornando-se frio, rarefeito e cristalino. A pressão atmosférica aumenta sobre as feridas, fechando-as como torniquetes invisíveis.",
+        effect:"Raio de 6m a 18m. Todas as criaturas na área recuperam 5d10 + INT/SAB de Pontos de Vida.",
+        cost: 0,
+        isAttack: false,
+        actionType: "standard",
+        isHealing: true,
+        healFormula: "5d10",
+        requiredRace: "haotai", // Exclusiva para Haotai
+      },
     ],
   },
 ];
