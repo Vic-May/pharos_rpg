@@ -171,8 +171,9 @@ export default function GrimoireScreen() {
       <SpellSelectorModal
         visible={learnModalVisible}
         onClose={() => setLearnModalVisible(false)}
-        onSelect={handleLearnSpell}
-        learnedSpells={character.grimoire || []} // Usa 'grimoire' se for esse o nome no seu Contexto
+        onSelect={addSpell}
+        learnedSpells={character.spells}
+        character={character}
       />
     </View>
   );

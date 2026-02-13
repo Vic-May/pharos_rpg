@@ -1,3 +1,4 @@
+import { Spell, Character } from "@/types/rpg";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 export const getCircleTheme = (circle: number) => {
@@ -15,6 +16,22 @@ export const getCircleTheme = (circle: number) => {
     default:
       return { primary: "#455a64", light: "#eceff1" }; // Cinza
   }
+};
+
+/**
+ Little filtro pra ver se pode aprender a maiga
+ */
+export const canLearnSpell = (character: Character, spell: Spell): boolean => {
+  if (!spell.requiredRace) return true;
+  const characterRace = character.ancestry?.name?.toLowerCase() || "";
+  return characterRace === spell.requiredRace.toLowerCase();
+};
+
+/**
+ Filtrozinho pra mostrar as magias disponiveis
+ */
+export const filterAvailableSpells = (character: Character, spells: Spell[]): Spell[] => {
+  return spells.filter(spell => canLearnSpell(character, spell));
 };
 
 // Definição das cores para cada escola

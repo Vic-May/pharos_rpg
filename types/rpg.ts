@@ -119,6 +119,8 @@ export interface Spell {
 
   isHealing?: boolean; // Identifica se é magia de cura
   healFormula?: string; // Ex: "1d8", "2d4+2"
+  requiredRace?: string; // Nova propriedade para restrição de raça
+
 }
 
 interface Ancestry {
