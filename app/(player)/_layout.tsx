@@ -103,11 +103,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="dices"
+        options={{
+          title: "Dados",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="dice" size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="session-combat"
         options={{
           title: "Turnos",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="dice" size={24} color={color} />
+            <Ionicons name="wifi" size={24} color={color} />
           ),
         }}
       />

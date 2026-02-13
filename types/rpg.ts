@@ -46,10 +46,23 @@ export type ActionType =
 export interface Skill {
   id: string;
   name: string;
+  level: number;
   cost: number;
   actionType: ActionType;
   description: string;
-  level: number;
+
+  usesWeaponDamage?: boolean;
+  weaponType?: "melee" | "ranged" | "any"; // <--- NOVO CAMPO IMPORTANTE
+  bonusDamage?: string;
+  damageType?: string;
+
+  isHealing?: boolean;
+  healFormula?: string;
+
+  saveRequest?: {
+    attribute: string;
+    effect: string;
+  };
 }
 
 export interface Stance {
@@ -67,6 +80,7 @@ export type ItemType = "consumable" | "equipment" | "key";
 export interface Item {
   id: string;
   name: string;
+  image?: string;
   description?: string;
   quantity: number;
   type: ItemType;
@@ -75,8 +89,16 @@ export interface Item {
 
 export interface EquipmentItem {
   name: string;
-  stats: string;
-  defense?: number;
+
+  // --- NOVOS CAMPOS PARA AUTOMAÇÃO ---
+  damage?: string; // Ex: "1d8", "2d6". Opcional (Escudo não tem)
+  damageType?: string; // Ex: "Cortante", "Perfurante"
+  range?: string; // Ex: "18m", "9/18m" ou "Corpo a Corpo"
+
+  // Mantemos 'stats' para propriedades textuais (Ex: "Leve, Finesse")
+  stats?: string;
+
+  defense?: number; // Para Armaduras e Escudos
   description?: string;
   weight: number;
 }
@@ -93,7 +115,7 @@ export interface Spell {
   // Novos campos para automação:
   isAttack: boolean; // Abre modal de ataque?
   damageFormula?: string; // Ex: "2d6"
-  actionType: "standard" | "bonus" | "reaction";
+  actionType: ActionType;
 
   isHealing?: boolean; // Identifica se é magia de cura
   healFormula?: string; // Ex: "1d8", "2d4+2"
@@ -189,6 +211,14 @@ export interface Character {
   feats: Feat[]; // Façanhas já desbloqueadas
 }
 
+export interface CombatWeaponData {
+  name: string;
+  damage: string;      // "1d8", "2d6"
+  attribute: AttributeName; // "Força" ou "Destreza"
+  attackBonus: number;
+  range: string;       // "Corpo a Corpo" ou "30m"
+}
+
 export interface Combatant {
   // Identificação
   id: string; // ID único na sessão de combate
@@ -226,6 +256,11 @@ export interface Combatant {
 
   // Equipamento/Ações: Aqui aceitamos string (NPC) ou Detalhado (Player)
   // Ou simplificamos tudo para string para o combate ficar leve
+  weapons: {
+    melee?: CombatWeaponData;  // Arma Primária
+    ranged?: CombatWeaponData; // Arma Secundária/Distância
+  };
+  
   equipmentSummary?: string;
   actionsDescription?: string;
 }
@@ -233,9 +268,10 @@ export interface Combatant {
 export interface NpcTemplate {
   id: string;
   name: string;
+  image?: string;
 
   level: number;
-  class: CharacterClass;
+  class: CharacterClass | string;
   ancestry: string;
 
   maxHp: number;
@@ -285,4 +321,13 @@ export interface ResolveActionPayload {
   // Efeitos
   damageAmount: number;
   healingAmount: number;
+}
+
+export interface GameEvent {
+  id: number;
+  type: string;
+  target_id: string | null;
+  attacker_name: string;
+  skill_name: string;
+  value: number;
 }

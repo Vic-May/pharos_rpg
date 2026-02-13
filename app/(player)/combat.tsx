@@ -1,4 +1,3 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import {
   ScrollView,
@@ -14,11 +13,10 @@ import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Skill } from "@/types/rpg";
 
-import { InfoRow } from "@/components/rpg/InfoRow";
+import { ActionTracker } from "@/components/rpg/ActionTracker";
+import { CombatHud } from "@/components/rpg/CombatHud";
 import { SkillCard } from "@/components/rpg/SkillCard";
-import { StatBar } from "@/components/ui/StatBar";
-
-// Sub-componentes locais (poderiam ser extraídos para components/rpg/SkillCard.tsx)
+import { StanceSelector } from "@/components/rpg/StanceSelector";
 
 export default function CombatScreen() {
   const { character, setStanceIndex, updateStat, toggleAction, endTurn } =
@@ -35,8 +33,6 @@ export default function CombatScreen() {
   const currentStanceIdx = character.currentStanceIndex ?? -1;
   const isNeutral = currentStanceIdx === -1;
   const activeStance = isNeutral ? null : character.stances[currentStanceIdx];
-  const focus = character.stats.focus;
-  const health = character.stats.hp;
 
   // Cálculo de CA (Lógica mantida)
   const armorClassInfo = useMemo(() => {
@@ -59,23 +55,6 @@ export default function CombatScreen() {
     return { total: baseAC + stanceMod, stanceMod, base: baseAC };
   }, [character.equipment, character.attributes, activeStance]);
 
-  const handleStanceChange = (newIndex: number) => {
-    if (newIndex === -1) {
-      setStanceIndex(-1);
-      return;
-    }
-    if (character.currentStanceIndex === newIndex) return;
-    if (!turnActions.bonus) {
-      showAlert(
-        "Ação Indisponível",
-        "Entrar em uma postura requer uma Ação Bônus neste turno.",
-      );
-      return;
-    }
-    setStanceIndex(newIndex);
-    toggleAction("bonus");
-  };
-
   const renderSkill = ({ item }: { item: Skill }) => (
     <SkillCard
       key={item.id}
@@ -90,234 +69,40 @@ export default function CombatScreen() {
   const level1Skills = character.skills.filter((s) => (s.level || 1) === 1);
   const level2Skills = character.skills.filter((s) => s.level === 2);
   const showLevel2 = (character.level || 1) >= 2 && level2Skills.length > 0;
+  const activeStanceId =
+    currentStanceIdx !== -1 ? character.stances[currentStanceIdx]?.id : null;
 
   return (
     <View style={styles.container}>
       {/* HUD DE COMBATE */}
-      <View style={styles.combatHud}>
-        <View style={styles.topRow}>
-          {/* VIDA */}
-          <View style={styles.healthContainer}>
-            <View style={styles.resourceHeader}>
-              <View style={styles.labelGroup}>
-                <Ionicons
-                  name="heart"
-                  size={14}
-                  color={colors.hp || "#ef5350"}
-                />
-                <Text style={styles.hudLabel}>VIDA</Text>
-              </View>
-              <Text style={styles.resourceValue}>
-                <Text
-                  style={[
-                    styles.resourceCurrent,
-                    { color: colors.hp || "#ef5350" },
-                  ]}
-                >
-                  {health.current}
-                </Text>
-                <Text style={styles.resourceMax}>/{health.max}</Text>
-              </Text>
-            </View>
-            <StatBar
-              current={health.current}
-              max={health.max}
-              color={colors.hp || "#ef5350"}
-              backgroundColor={colors.inputBg}
-              height={10}
-            />
-          </View>
-
-          <View style={styles.verticalSeparator} />
-
-          {/* DEFESA */}
-          <View style={styles.acContainer}>
-            <View style={styles.labelGroup}>
-              <MaterialCommunityIcons
-                name="shield"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.hudLabel}>DEFESA</Text>
-            </View>
-            <View style={styles.acValueContainer}>
-              <Text style={styles.acTotal}>{armorClassInfo.total}</Text>
-              {armorClassInfo.stanceMod !== 0 && (
-                <View
-                  style={[
-                    styles.modBadge,
-                    {
-                      borderColor:
-                        armorClassInfo.stanceMod > 0
-                          ? colors.success
-                          : colors.error,
-                      backgroundColor:
-                        armorClassInfo.stanceMod > 0
-                          ? colors.success + "20"
-                          : colors.error + "20",
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      armorClassInfo.stanceMod > 0 ? "arrow-up" : "arrow-down"
-                    }
-                    size={10}
-                    color={
-                      armorClassInfo.stanceMod > 0
-                        ? colors.success
-                        : colors.error
-                    }
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* FOCO */}
-        <View style={styles.bottomRow}>
-          <View style={styles.resourceHeader}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="flash" size={14} color={colors.focus} />
-              <Text style={styles.hudLabel}>FOCO</Text>
-            </View>
-            <Text style={styles.resourceValue}>
-              <Text style={[styles.resourceCurrent, { color: colors.focus }]}>
-                {focus.current}
-              </Text>
-              <Text style={styles.resourceMax}>/{focus.max}</Text>
-            </Text>
-          </View>
-          <StatBar
-            current={focus.current}
-            max={focus.max}
-            color={colors.focus}
-            backgroundColor={colors.inputBg}
-            height={10}
-          />
-        </View>
-      </View>
-
+      <CombatHud
+        health={character.stats.hp}
+        focus={character.stats.focus}
+        armorClass={armorClassInfo.total}
+        stanceMod={armorClassInfo.stanceMod}
+      />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* SELETOR DE POSTURA */}
-        <View style={styles.stanceSelectorContainer}>
-          <Text style={styles.sectionLabel}>Postura Atual</Text>
-          <View style={styles.stanceToggleGroup}>
-            <TouchableOpacity
-              style={[
-                styles.stanceBtn,
-                isNeutral && styles.stanceBtnNeutralActive,
-              ]}
-              onPress={() => handleStanceChange(-1)}
-            >
-              <Text
-                style={[
-                  styles.stanceBtnText,
-                  isNeutral && styles.stanceBtnTextActive,
-                ]}
-              >
-                Neutra
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.stanceBtn,
-                currentStanceIdx === 0 && styles.stanceBtnP1Active,
-                currentStanceIdx !== 0 &&
-                  !turnActions.bonus && { opacity: 0.5 },
-              ]}
-              onPress={() => handleStanceChange(0)}
-            >
-              <Text
-                style={[
-                  styles.stanceBtnText,
-                  currentStanceIdx === 0 && { color: "#fff" },
-                ]}
-              >
-                I
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.stanceBtn,
-                currentStanceIdx === 1 && styles.stanceBtnP2Active,
-                currentStanceIdx !== 1 &&
-                  !turnActions.bonus && { opacity: 0.5 },
-              ]}
-              onPress={() => handleStanceChange(1)}
-            >
-              <Text
-                style={[
-                  styles.stanceBtnText,
-                  currentStanceIdx === 1 && { color: "#fff" },
-                ]}
-              >
-                II
-              </Text>
-              {currentStanceIdx !== 1 && !turnActions.bonus && (
-                <Ionicons
-                  name="lock-closed"
-                  size={10}
-                  color={colors.textSecondary}
-                  style={{ position: "absolute", top: 2, right: 2 }}
-                />
-              )}
-            </TouchableOpacity>
-          </View>
+        <View style={styles.combatSection}>
+          <StanceSelector
+            stances={character.stances}
+            activeStanceId={activeStanceId}
+            turnActions={turnActions}
+            onStanceChange={(index) => {
+              if (index !== -1 && !turnActions.bonus) {
+                showAlert("Sem Ação", "Mudar postura requer Ação Bônus");
+                return;
+              }
 
-          <View
-            style={[
-              styles.stanceCard,
-              isNeutral
-                ? styles.stanceNeutralBg
-                : currentStanceIdx === 0
-                  ? styles.stanceOneBg
-                  : styles.stanceTwoBg,
-            ]}
-          >
-            <Text style={styles.activeStanceName}>
-              {isNeutral ? "Postura Neutra" : activeStance?.name}
-            </Text>
-            <View style={styles.divider} />
-            {isNeutral ? (
-              <Text style={styles.neutralText}>
-                Você não está focado em nenhuma técnica específica.
-              </Text>
-            ) : (
-              <View style={styles.stanceDetails}>
-                <InfoRow
-                  label="Benefício"
-                  text={activeStance?.benefit}
-                  color={colors.success}
-                  styles={styles}
-                />
-                <InfoRow
-                  label="Restrição"
-                  text={activeStance?.restriction}
-                  color={colors.error}
-                  styles={styles}
-                />
-                <InfoRow
-                  label="Manobra"
-                  text={activeStance?.maneuver}
-                  color={colors.focus}
-                  styles={styles}
-                />
-                {activeStance?.recovery && (
-                  <InfoRow
-                    label="Recuperação"
-                    text={activeStance?.recovery}
-                    color={colors.primary}
-                    styles={styles}
-                  />
-                )}
-              </View>
-            )}
-          </View>
+              if (index !== -1) {
+                toggleAction("bonus");
+              }
+              setStanceIndex(index);
+            }}
+          />
         </View>
 
         {/* RASTREADOR DE AÇÕES */}
@@ -325,58 +110,10 @@ export default function CombatScreen() {
           <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>
             Turno & Ações
           </Text>
-          <View style={styles.actionsRow}>
-            {["standard", "bonus", "reaction"].map((type) => {
-              const key = type as keyof typeof turnActions;
-              const isActive = turnActions[key];
-              const color =
-                key === "standard"
-                  ? colors.primary
-                  : key === "bonus"
-                    ? "#fb8c00"
-                    : "#8e24aa";
-              const label =
-                key === "standard"
-                  ? "Padrão"
-                  : key === "bonus"
-                    ? "Bônus"
-                    : "Reação";
-              const icon =
-                key === "standard"
-                  ? "sword-cross"
-                  : key === "bonus"
-                    ? "star-four-points"
-                    : "shield-alert";
-
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.actionBtn,
-                    {
-                      backgroundColor: isActive ? color : colors.inputBg,
-                      opacity: isActive ? 1 : 0.4,
-                    },
-                  ]}
-                  onPress={() => toggleAction(key)}
-                >
-                  <MaterialCommunityIcons
-                    name={icon}
-                    size={18}
-                    color={isActive ? "#fff" : colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.actionBtnText,
-                      { color: isActive ? "#fff" : colors.textSecondary },
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <ActionTracker
+            turnActions={turnActions}
+            onToggle={(type) => toggleAction(type)}
+          />
           <TouchableOpacity style={styles.endTurnBtn} onPress={endTurn}>
             <Text style={styles.endTurnText}>ENCERRAR TURNO ↻</Text>
           </TouchableOpacity>

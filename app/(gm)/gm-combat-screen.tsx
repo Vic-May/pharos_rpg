@@ -1,11 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   FlatList,
-  Modal,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -31,21 +29,13 @@ export default function GMCombatScreen() {
   const { isConnected, sendMessage, connectToRoute, disconnect } =
     useWebSocket();
 
-  // Modal NPC
-  const [showNpcModal, setShowNpcModal] = useState(false);
-  const [npcName, setNpcName] = useState("");
-  const [npcHp, setNpcHp] = useState("10");
-  const [npcInit, setNpcInit] = useState("");
-
-  // --- HANDLERS ---
-
   const handleConnectGM = (ip: string, code: string) => {
     if (!ip || !code) {
       showAlert("Erro", "Preencha IP e Sala.");
       return;
     }
     if (connectToRoute) {
-      connectToRoute(ip, code, "GM_ADMIN", {
+      connectToRoute(ip, code, {
         id: "GM_ADMIN",
         name: "Mestre",
         type: "gm",
@@ -82,19 +72,20 @@ export default function GMCombatScreen() {
     ]);
   };
 
-  const handleAddNpc = () => {
-    sendMessage("GM_ADD_NPC", {
-      name: npcName || "Inimigo",
-      hp: parseInt(npcHp) || 10,
-      initiative: parseInt(npcInit) || Math.floor(Math.random() * 20) + 1,
-      type: "npc",
-    });
-    setShowNpcModal(false);
-    setNpcName("");
-    setNpcInit("");
-    setNpcHp("10");
+  const handleEndCombat = () => {
+    showAlert(
+      "Finalizar Combate",
+      "Deseja encerrar o combate? Isso avisará todos os jogadores.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Finalizar",
+          onPress: () => sendMessage("END_COMBAT", { endCombat: true }),
+          style: "default",
+        },
+      ],
+    );
   };
-
   const activeCombatant = combatants.find((c) => c.id === activeTurnId);
   const isNpcTurn = activeCombatant && activeCombatant.type === "npc";
 
@@ -175,60 +166,15 @@ export default function GMCombatScreen() {
 
       {!isNpcTurn && (
         <TouchableOpacity
+          onPress={handleEndCombat}
           style={styles.fab}
-          onPress={() => setShowNpcModal(true)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="add" size={30} color="#fff" />
+          <Ionicons name="flag" size={20} color="#fff" />
         </TouchableOpacity>
       )}
 
       {/* Modal Add NPC Rápido */}
-      <Modal
-        visible={showNpcModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowNpcModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Adicionar NPC Rápido</Text>
-            <TextInput
-              placeholder="Nome (ex: Goblin)"
-              placeholderTextColor={colors.textSecondary}
-              value={npcName}
-              onChangeText={setNpcName}
-              style={styles.input}
-            />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TextInput
-                placeholder="HP"
-                placeholderTextColor={colors.textSecondary}
-                value={npcHp}
-                onChangeText={setNpcHp}
-                keyboardType="numeric"
-                style={[styles.input, { flex: 1 }]}
-              />
-              <TextInput
-                placeholder="Iniciativa"
-                placeholderTextColor={colors.textSecondary}
-                value={npcInit}
-                onChangeText={setNpcInit}
-                keyboardType="numeric"
-                style={[styles.input, { flex: 1 }]}
-              />
-            </View>
-            <TouchableOpacity onPress={handleAddNpc} style={styles.connectBtn}>
-              <Text style={styles.connectBtnText}>ADICIONAR</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowNpcModal(false)}
-              style={{ marginTop: 15, alignItems: "center" }}
-            >
-              <Text style={{ color: colors.textSecondary }}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -264,10 +210,10 @@ const getStyles = (colors: any) =>
       width: 56,
       height: 56,
       borderRadius: 28,
-      backgroundColor: colors.primary,
       alignItems: "center",
       justifyContent: "center",
       elevation: 6,
+      backgroundColor: "#2e7d32",
     },
     empty: { textAlign: "center", marginTop: 50, color: colors.textSecondary },
     modalOverlay: {
@@ -308,4 +254,11 @@ const getStyles = (colors: any) =>
       marginTop: 8,
     },
     connectBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+    finishBtn: {
+      backgroundColor: "#2e7d32",
+      padding: 8,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+    },
   });

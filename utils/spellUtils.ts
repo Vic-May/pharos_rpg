@@ -1,4 +1,5 @@
 import { Spell, Character } from "@/types/rpg";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 export const getCircleTheme = (circle: number) => {
   switch (circle) {
@@ -33,3 +34,76 @@ export const filterAvailableSpells = (character: Character, spells: Spell[]): Sp
   return spells.filter(spell => canLearnSpell(character, spell));
 };
 
+// Definição das cores para cada escola
+const SCHOOL_THEMES: Record<
+  string,
+  { color: string; icon: string; iconLib: any }
+> = {
+  // Escolas Elementais
+  Fogo: {
+    color: "#ef5350", // Vermelho
+    icon: "fire",
+    iconLib: MaterialCommunityIcons,
+  },
+  Agua: {
+    color: "#29b6f6", // Azul Claro
+    icon: "water-outline",
+    iconLib: Ionicons,
+  },
+  Terra: {
+    color: "#8d6e63", // Marrom
+    icon: "leaf", // Ou 'terrain'
+    iconLib: MaterialCommunityIcons,
+  },
+  Céu: {
+    color: "#81d4fa", // Azul Celeste / Ar
+    icon: "weather-windy",
+    iconLib: MaterialCommunityIcons,
+  },
+
+  // Escolas Conceituais
+  Luz: {
+    color: "#fbc02d", // Dourado/Amarelo
+    icon: "sunny",
+    iconLib: Ionicons,
+  },
+  Energia: {
+    color: "#ab47bc", // Roxo/Violeta
+    icon: "flash",
+    iconLib: Ionicons,
+  },
+  Som: {
+    color: "#78909c", // Cinza Azulado
+    icon: "music-note",
+    iconLib: MaterialCommunityIcons,
+  },
+  Natureza: {
+    color: "#66bb6a", // Verde
+    icon: "flower",
+    iconLib: MaterialCommunityIcons,
+  },
+};
+
+// Fallback para escolas desconhecidas ou genéricas
+const DEFAULT_THEME = {
+  color: "#bdbdbd",
+  icon: "auto-fix",
+  iconLib: MaterialCommunityIcons,
+};
+
+/**
+ * Retorna a cor e o ícone baseados no nome da escola.
+ * @param schoolName Nome da escola (ex: "Fogo", "Luz")
+ */
+export const getSchoolTheme = (schoolName?: string) => {
+  if (!schoolName) return DEFAULT_THEME;
+
+  // Normaliza para Capitalize (primeira letra maiúscula) caso venha bagunçado
+  // Mas tenta buscar direto primeiro
+  return SCHOOL_THEMES[schoolName] || DEFAULT_THEME;
+};
+
+// Se quiser APENAS a cor simples:
+export const getSchoolColor = (schoolName?: string): string => {
+  return getSchoolTheme(schoolName).color;
+};

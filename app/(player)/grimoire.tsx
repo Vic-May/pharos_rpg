@@ -13,6 +13,7 @@ import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Spell } from "@/types/rpg";
+import { getActionKey } from "@/utils/rpgUtils";
 import { getCircleTheme } from "@/utils/spellUtils";
 
 // Componentes
@@ -21,7 +22,8 @@ import { SpellCard } from "@/components/rpg/SpellCard";
 import { StatBar } from "@/components/ui/StatBar";
 
 export default function GrimoireScreen() {
-  const { character, addSpell, removeSpell, updateStat } = useCharacter();
+  const { character, addSpell, removeSpell, updateStat, toggleAction } =
+    useCharacter();
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { showAlert } = useAlert();
@@ -30,11 +32,13 @@ export default function GrimoireScreen() {
 
   // Agrupamento de magias por Círculo
   const sections = useMemo(() => {
-    if (!character.grimoire || character.grimoire.length === 0) return [];
+    // Garante que grimoire existe e é array
+    const grimoire = character.grimoire || [];
+    if (grimoire.length === 0) return [];
 
-    const groups = character.grimoire.reduce(
+    const groups = grimoire.reduce(
       (acc, spell) => {
-        const circleKey = spell.circle;
+        const circleKey = spell.circle || 1; // Fallback para círculo 1 se indefinido
         if (!acc[circleKey]) acc[circleKey] = [];
         acc[circleKey].push(spell);
         return acc;
@@ -55,31 +59,43 @@ export default function GrimoireScreen() {
   const focus = character.stats.focus;
 
   // Handlers
-  const handleCastSpell = (spellName: string, cost: number) => {
-    showAlert(
-      "Conjurar Magia",
-      `Gastar ${cost} de Foco para lançar ${spellName}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Conjurar", onPress: () => updateStat("focus", -cost) },
-      ],
-    );
+  const handleLearnSpell = (spell: Spell) => {
+    addSpell(spell);
+    setLearnModalVisible(false);
+    showAlert("Sucesso", `${spell.name} adicionada ao grimório.`);
+  };
+
+  const handleCastLogic = (spell: Spell) => {
+    // 1. Validação de Foco (O SpellCard já faz visualmente, mas é bom garantir)
+    if (character.stats.focus.current < spell.cost) {
+      showAlert("Sem Foco", "Você não tem foco suficiente.");
+      return;
+    }
+
+    // 2. Atualiza Foco
+    updateStat("focus", -spell.cost);
+
+    // 3. Consome Ação (Se houver custo de ação)
+    const key = getActionKey(spell.actionType || "standard");
+    if (key) toggleAction(key);
+
+    // 4. Feedback
+    showAlert("Magia", `${spell.name} conjurada!`);
   };
 
   const handleForgetSpell = (spellId: string) => {
-    showAlert("Esquecer Magia", "Tem certeza?", [
-      { text: "Não", style: "cancel" },
-      {
-        text: "Sim",
-        style: "destructive",
-        onPress: () => removeSpell(spellId),
-      },
-    ]);
-  };
-
-  const handleLearnSpell = (spell: Spell) => {
-    addSpell(spell);
-    showAlert("Sucesso", `${spell.name} adicionada ao grimório.`);
+    showAlert(
+      "Esquecer Magia",
+      "Tem certeza que deseja remover esta magia do grimório?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Remover",
+          style: "destructive",
+          onPress: () => removeSpell(spellId),
+        },
+      ],
+    );
   };
 
   return (
@@ -97,7 +113,6 @@ export default function GrimoireScreen() {
           </Text>
         </View>
 
-        {/* Usando o componente StatBar reutilizável */}
         <StatBar
           current={focus.current}
           max={focus.max}
@@ -106,7 +121,7 @@ export default function GrimoireScreen() {
         />
       </View>
 
-      {/* Botão de Adicionar Magia */}
+      {/* Action Bar */}
       <View style={styles.actionBar}>
         <Text style={styles.screenTitle}>Grimório</Text>
         <TouchableOpacity
@@ -118,16 +133,16 @@ export default function GrimoireScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Lista de Magias Aprendidas */}
+      {/* Lista de Magias */}
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <SpellCard
             spell={item}
-            currentFocus={focus.current}
-            onCast={(cost) => handleCastSpell(item.name, cost)}
-            onForget={() => handleForgetSpell(item.id)}
+            character={character}
+            onCast={handleCastLogic}
+            onForget={handleForgetSpell}
           />
         )}
         renderSectionHeader={({ section: { title, circleLevel } }) => {
@@ -152,7 +167,7 @@ export default function GrimoireScreen() {
         }
       />
 
-      {/* --- MODAL DE APRENDER MAGIAS --- */}
+      {/* --- MODAL DE APRENDER --- */}
       <SpellSelectorModal
         visible={learnModalVisible}
         onClose={() => setLearnModalVisible(false)}
@@ -164,7 +179,6 @@ export default function GrimoireScreen() {
   );
 }
 
-// Styles reduzidos (apenas layout)
 const getStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -214,11 +228,12 @@ const getStyles = (colors: any) =>
     },
     addBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
     // List
-    listContent: { paddingBottom: 20 },
+    listContent: { paddingBottom: 20, paddingHorizontal: 16 }, // Adicionado padding horizontal na lista
     sectionHeader: {
       backgroundColor: colors.background,
       paddingVertical: 8,
-      paddingHorizontal: 16,
+      // paddingHorizontal removido aqui pois já está no contentContainerStyle ou pode manter se quiser full width
+      marginBottom: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
@@ -231,32 +246,5 @@ const getStyles = (colors: any) =>
       color: colors.textSecondary,
       fontStyle: "italic",
       paddingHorizontal: 40,
-    },
-    // Modal
-    modalContainer: { flex: 1, backgroundColor: colors.background },
-    modalHeader: {
-      padding: 16,
-      backgroundColor: colors.surface,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-    },
-    modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
-    closeText: { color: colors.primary, fontWeight: "600" },
-    modalContent: { padding: 16 },
-    schoolGroup: { marginBottom: 24 },
-    schoolTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: colors.text,
-      marginBottom: 4,
-    },
-    schoolQuote: {
-      fontSize: 12,
-      fontStyle: "italic",
-      color: colors.textSecondary,
-      marginBottom: 12,
     },
   });

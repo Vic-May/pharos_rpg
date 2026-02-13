@@ -5,19 +5,20 @@ import { SpecializationModal } from "@/components/modals/SpecializationModal";
 import { AttributeGrid } from "@/components/rpg/AttributeGrid";
 import { DeathSaveMonitor } from "@/components/rpg/DeathSaveMonitor";
 import { ResourceControl } from "@/components/rpg/ResourceControl";
+import { AvatarPortrait } from "@/components/ui/AvatarPortrait";
 import { ThemeColors } from "@/constants/theme";
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import * as ImagePicker from "expo-image-picker";
 import React, { useMemo, useState } from "react";
 import {
-  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -34,19 +35,19 @@ export default function HomeScreen() {
     importCharacter,
   } = useCharacter();
 
-  const { colors } = useTheme(); // <--- Pegue as cores
+  const { colors } = useTheme();
   const { showAlert } = useAlert();
-
-  // 3. Gerar Estilos baseados nas cores atuais
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  // Estado para controlar a visibilidade do Modal de Edição
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [showOriginDetails, setShowOriginDetails] = useState(false);
   const [specModalVisible, setSpecModalVisible] = useState(false);
   const [featsModalVisible, setFeatsModalVisible] = useState(false);
-
   const [isMoneyModalVisible, setMoneyModalVisible] = useState(false);
+
+  // Estados da Imagem por URL
+  const [isImageModalVisible, setImageModalVisible] = useState(false);
+  const [tempImageUrl, setTempImageUrl] = useState("");
 
   const canSpecialize =
     (character.level || 1) >= 5 && !character.specialization;
@@ -64,9 +65,7 @@ export default function HomeScreen() {
     }
   };
 
-  const openMoneyModal = () => {
-    setMoneyModalVisible(true);
-  };
+  const openMoneyModal = () => setMoneyModalVisible(true);
 
   const handleShortRest = () => {
     showAlert(
@@ -85,56 +84,26 @@ export default function HomeScreen() {
       "Deseja dormir uma noite completa? Isso recuperará TODA a sua Vida e Foco.",
       [
         { text: "Cancelar", style: "cancel" },
-        { text: "Dormir", onPress: performLongRest }, // style default (azul)
+        { text: "Dormir", onPress: performLongRest },
       ],
     );
   };
 
-  // const handleReset = () => {
-  //   showAlert(
-  //     "Resetar Ficha",
-  //     "Tem a certeza? Isto apagará todo o progresso e restaurará os dados iniciais do código.",
-  //     [
-  //       { text: "Cancelar", style: "cancel" },
-  //       {
-  //         text: "Sim, Resetar",
-  //         style: "destructive",
-  //         onPress: () => resetCharacter(), // <--- Chama a função
-  //       },
-  //     ]
-  //   );
-  // };
-
-  const pickImage = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permissionResult.granted === false) {
+  const handleSaveImage = () => {
+    const url = tempImageUrl.trim();
+    if (url && !url.startsWith("http")) {
       showAlert(
-        "Permissão necessária",
-        "É necessário permitir o acesso à galeria para mudar a foto.",
+        "URL Inválida",
+        "O link da imagem precisa começar com http ou https.",
       );
       return;
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"], // Apenas imagens
-      allowsEditing: true, // Permite recortar (crop)
-      aspect: [1, 1], // Força formato quadrado
-      quality: 0.5, // Qualidade média para não pesar no armazenamento
-      base64: true, // Importante para salvar no AsyncStorage
-    });
-
-    if (!result.canceled && result.assets[0].base64) {
-      // Salva a imagem como string base64 data URI
-      const imageUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      updateImage(imageUri);
-    }
+    updateImage(url);
+    setImageModalVisible(false);
   };
 
   const handleImport = async () => {
     try {
-      // 1. Lê o texto da memória
       const content = await Clipboard.getStringAsync();
 
       if (!content) {
@@ -142,10 +111,8 @@ export default function HomeScreen() {
         return;
       }
 
-      // 2. Tenta converter para JSON
       const parsedData = JSON.parse(content);
 
-      // 3. Validação básica (vê se tem nome e status)
       if (!parsedData.name || !parsedData.stats) {
         showAlert(
           "Inválido",
@@ -154,7 +121,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // 4. Confirmação antes de sobrescrever
       showAlert(
         "Importar Ficha",
         `Deseja substituir o personagem atual por "${parsedData.name}"?\n\nIsso apagará os dados atuais deste app.`,
@@ -163,11 +129,7 @@ export default function HomeScreen() {
           {
             text: "Sim, Substituir",
             style: "destructive",
-            onPress: () => {
-              importCharacter(parsedData);
-              // Opcional: Avisar sucesso
-              // showAlert("Sucesso", "Personagem importado!");
-            },
+            onPress: () => importCharacter(parsedData),
           },
         ],
       );
@@ -179,6 +141,74 @@ export default function HomeScreen() {
     }
   };
 
+  const handleOfflineDeathSave = (manualRoll?: number) => {
+    let d20: number;
+
+    if (manualRoll !== undefined) {
+      if (isNaN(manualRoll) || manualRoll < 1 || manualRoll > 20) {
+        showAlert("Valor Inválido", "Insira um valor entre 1 e 20.");
+        return;
+      }
+      d20 = manualRoll;
+    } else {
+      d20 = Math.floor(Math.random() * 20) + 1;
+    }
+
+    const currentSuccesses = character.deathSaves.successes;
+    const currentFailures = character.deathSaves.failures;
+
+    let newSuccesses = currentSuccesses;
+    let newFailures = currentFailures;
+    let hpUpdate = 0;
+    let died = false;
+    let resultText = "";
+
+    if (d20 === 20) {
+      hpUpdate = 1;
+      newSuccesses = 0;
+      newFailures = 0;
+      resultText = "20 NATURAL! Você renasce com 1 PV!";
+    } else if (d20 === 1) {
+      newFailures += 2;
+      resultText = "FALHA CRÍTICA! (2 Falhas)";
+    } else if (d20 >= 10) {
+      newSuccesses += 1;
+      resultText = "SUCESSO.";
+    } else {
+      newFailures += 1;
+      resultText = "FALHA.";
+    }
+
+    if (newSuccesses >= 3 && hpUpdate === 0) {
+      newSuccesses = 0;
+      newFailures = 0;
+      hpUpdate = 1;
+      resultText += "\n\nESTABILIZOU! (Você acorda com 1 PV)";
+    } else if (newFailures >= 3) {
+      died = true;
+      resultText += "\n\nSEU PERSONAGEM MORREU.";
+    }
+
+    // Aplica no Contexto
+    if (hpUpdate > 0) {
+      updateStat("hp", hpUpdate - character.stats.hp.current); // Ajusta para ficar com 1
+      updateDeathSave("success", 0);
+      updateDeathSave("failure", 0);
+    } else {
+      updateDeathSave("success", Math.min(3, newSuccesses));
+      updateDeathSave("failure", Math.min(3, newFailures));
+    }
+
+    // Se estiver usando o controle de turnActions local, marca a padrão como gasta (opcional)
+    showAlert(
+      hpUpdate > 0 ? "Salvo!" : died ? "Morte" : "Teste de Morte",
+      `Rolagem: ${d20}\n${resultText}`,
+    );
+
+    // No offline você pode querer terminar o turno automaticamente, ou apenas deixar o jogador clicar no botão
+    // endTurn();
+  };
+
   return (
     <View style={styles.mainContainer}>
       <ScrollView
@@ -188,9 +218,7 @@ export default function HomeScreen() {
         {/* --- HEADER --- */}
         <View style={styles.topBar}>
           <Text style={styles.screenTitle}>Ficha</Text>
-          {/* Agrupamento dos 3 botões à direita */}
           <View style={{ flexDirection: "row", gap: 10 }}>
-            {/* 1. Botão Importar (Download) */}
             <TouchableOpacity onPress={handleImport} style={styles.iconBtn}>
               <Ionicons
                 name="download-outline"
@@ -199,7 +227,6 @@ export default function HomeScreen() {
               />
             </TouchableOpacity>
 
-            {/* 2. Botão Exportar (Share) */}
             <TouchableOpacity onPress={handleExport} style={styles.iconBtn}>
               <Ionicons
                 name="share-social-outline"
@@ -208,7 +235,6 @@ export default function HomeScreen() {
               />
             </TouchableOpacity>
 
-            {/* 3. Botão Editar (Settings) */}
             <TouchableOpacity
               onPress={() => setEditModalVisible(true)}
               style={styles.iconBtn}
@@ -225,15 +251,15 @@ export default function HomeScreen() {
         {/* --- AVATAR E INFO --- */}
         <View style={styles.headerContainer}>
           <TouchableOpacity
-            onPress={pickImage}
+            onPress={() => {
+              setTempImageUrl(character.image || "");
+              setImageModalVisible(true);
+            }}
             activeOpacity={0.8}
             style={styles.avatarContainer}
           >
             {character.image ? (
-              <Image
-                source={{ uri: character.image }}
-                style={styles.avatarImage}
-              />
+              <AvatarPortrait imageUrl={character.image} size={80} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="camera" size={32} color={colors.iconDefault} />
@@ -241,7 +267,7 @@ export default function HomeScreen() {
               </View>
             )}
             <View style={styles.editBadge}>
-              <Ionicons name="pencil" size={12} color="#fff" />
+              <Ionicons name="link" size={12} color="#fff" />
             </View>
           </TouchableOpacity>
 
@@ -278,7 +304,6 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Progressão</Text>
 
-          {/* Botão Especialização */}
           <TouchableOpacity
             style={[
               styles.progressionBtn,
@@ -298,14 +323,13 @@ export default function HomeScreen() {
                     : "Bloqueado (Nível 5)"}
               </Text>
             </View>
-
             <Ionicons
               name={
                 character.specialization
                   ? "checkmark-circle"
                   : !canSpecialize
                     ? "lock-closed"
-                    : "arrow-forward" // Ícone de cadeado se bloqueado
+                    : "arrow-forward"
               }
               size={24}
               color={
@@ -316,7 +340,6 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
 
-          {/* Botão Façanhas */}
           <TouchableOpacity
             style={styles.progressionBtn}
             onPress={() => setFeatsModalVisible(true)}
@@ -330,15 +353,6 @@ export default function HomeScreen() {
             <Ionicons name="trophy-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-
-        <SpecializationModal
-          visible={specModalVisible}
-          onClose={() => setSpecModalVisible(false)}
-        />
-        <FeatsModal
-          visible={featsModalVisible}
-          onClose={() => setFeatsModalVisible(false)}
-        />
 
         <View style={styles.divider} />
 
@@ -452,26 +466,24 @@ export default function HomeScreen() {
           onDecrement={() => updateStat("focus", -1)}
         />
 
-        {/* --- SEÇÃO DE DEATH SAVES (CONDICIONAL) --- */}
-
-        <DeathSaveMonitor
-          hp={character.stats.hp.current}
-          successes={character.deathSaves.successes}
-          failures={character.deathSaves.failures}
-          onUpdate={updateDeathSave}
-        />
+        {character.stats.hp.current <= 0 && (
+          <DeathSaveMonitor
+            successes={character.deathSaves.successes}
+            failures={character.deathSaves.failures}
+            onUpdateSave={(type, val) => {
+              // Quando o jogador clica manualmente nas bolinhas pela Home
+              // Você já deve ter uma função no context que seta diretamente.
+              updateDeathSave(type, val);
+            }}
+            onRoll={handleOfflineDeathSave}
+            onEndTurn={() => null} // Na ficha, não tem botão de encerrar turno
+          />
+        )}
 
         <View style={styles.divider} />
 
         {/* --- ATRIBUTOS --- */}
         <AttributeGrid attributes={character.attributes} />
-
-        {/* --- BOTÃO RESET --- */}
-        {/* <View style={styles.debugSection}>
-          <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-            <Text style={styles.resetText}>⚠ Resetar Ficha (Debug)</Text>
-          </TouchableOpacity>
-        </View> */}
 
         <View style={styles.divider} />
 
@@ -508,7 +520,7 @@ export default function HomeScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* --- MODAL DINHEIRO --- */}
+      {/* --- MODAIS COMPARTILHADOS --- */}
       <GoldModal
         visible={isMoneyModalVisible}
         onClose={() => setMoneyModalVisible(false)}
@@ -516,16 +528,81 @@ export default function HomeScreen() {
         onSave={(newVal) => updateSilver(newVal)}
       />
 
-      {/* --- MODAL EDIÇÃO (AGORA COM NÍVEL) --- */}
       <EditCharacterModal
         visible={isEditModalVisible}
         onClose={() => setEditModalVisible(false)}
       />
+
+      <SpecializationModal
+        visible={specModalVisible}
+        onClose={() => setSpecModalVisible(false)}
+      />
+
+      <FeatsModal
+        visible={featsModalVisible}
+        onClose={() => setFeatsModalVisible(false)}
+      />
+
+      {/* --- MODAL DA IMAGEM (URL) --- */}
+      <Modal
+        visible={isImageModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.smallModal}>
+            <Text style={styles.smallModalTitle}>Link do Avatar</Text>
+
+            <Text
+              style={[styles.label, { textAlign: "center", marginBottom: 12 }]}
+            >
+              Cole o link direto da imagem (Imgur, Pinterest, etc).
+            </Text>
+
+            <View style={styles.inputWrapper}>
+              <Ionicons
+                name="link"
+                size={20}
+                color={colors.textSecondary}
+                style={{ marginRight: 8 }}
+              />
+              <TextInput
+                style={[
+                  styles.input,
+                  { flex: 1, borderWidth: 0, paddingHorizontal: 0 },
+                ]}
+                value={tempImageUrl}
+                onChangeText={setTempImageUrl}
+                placeholder="https://exemplo.com/foto.jpg"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setImageModalVisible(false)}
+              >
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleSaveImage}
+              >
+                <Text style={styles.saveText}>Salvar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-// --- GERADOR DE ESTILOS DINÂMICO ---
+// --- GERADOR DE ESTILOS DINÂMICO (LIMPO E OTIMIZADO) ---
 const getStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     mainContainer: { flex: 1, backgroundColor: colors.background },
@@ -542,7 +619,7 @@ const getStyles = (colors: ThemeColors) =>
     screenTitle: { fontSize: 28, fontWeight: "bold", color: colors.text },
     iconBtn: { padding: 8 },
 
-    // Header
+    // Header e Avatar
     headerContainer: {
       flexDirection: "row",
       alignItems: "center",
@@ -575,7 +652,6 @@ const getStyles = (colors: ThemeColors) =>
       borderWidth: 2,
       borderColor: colors.surface,
     },
-
     headerText: { flex: 1 },
     charName: { fontSize: 24, fontWeight: "bold", color: colors.text },
     subtext: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
@@ -594,9 +670,26 @@ const getStyles = (colors: ThemeColors) =>
       textTransform: "uppercase",
     },
 
+    // Globais
     divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
+    section: {},
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      marginBottom: 12,
+      color: colors.textSecondary,
+      textTransform: "uppercase",
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontWeight: "bold",
+      color: colors.textSecondary,
+      marginBottom: 10,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
 
-    // Carteira (Mantive as cores originais mas adaptei o texto e fundo)
+    // Carteira
     walletContainer: {
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -617,6 +710,30 @@ const getStyles = (colors: ThemeColors) =>
       textTransform: "uppercase",
     },
     walletValue: { fontSize: 28, fontWeight: "bold", color: colors.text },
+
+    // Progressão
+    progressionBtn: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    btnCompleted: {
+      backgroundColor: colors.inputBg,
+      borderColor: colors.success,
+    },
+    btnLocked: {
+      backgroundColor: colors.inputBg,
+      opacity: 0.6,
+      borderColor: colors.border,
+    },
+    btnTitle: { fontSize: 16, fontWeight: "bold", color: colors.text },
+    btnSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 
     // Origin Card
     originCard: {
@@ -651,58 +768,8 @@ const getStyles = (colors: ThemeColors) =>
     infoBlock: { flexDirection: "row", gap: 6, marginBottom: 4 },
     infoText: { fontSize: 13, color: colors.textSecondary, flex: 1 },
 
-    // Resources
-    resourceContainer: { marginBottom: 16 },
-    resourceHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 4,
-    },
-    resourceLabel: { fontWeight: "600", color: colors.text },
-    resourceValues: { color: colors.textSecondary },
-    barBackground: {
-      height: 12,
-      backgroundColor: colors.border,
-      borderRadius: 6,
-      overflow: "hidden",
-      marginBottom: 8,
-    },
-    barFill: { height: "100%" },
-    buttonsRow: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
-    btn: {
-      width: 40,
-      height: 30,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: 4,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-
-    // Debug
-    debugSection: { marginTop: 20, alignItems: "center", marginBottom: 20 },
-    resetButton: {
-      backgroundColor: colors.error + "20",
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.error,
-    },
-    resetText: { color: colors.error, fontWeight: "bold" },
-
-    // Rest
-    sectionLabel: {
-      fontSize: 14,
-      fontWeight: "bold",
-      color: colors.textSecondary,
-      marginBottom: 10,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-    },
+    // Descanso
     restContainer: { flexDirection: "row", gap: 12 },
-    // Cards de descanso mantidos com cor fixa para identidade visual, mas texto adaptado
     restButtonShort: {
       flex: 1,
       flexDirection: "row",
@@ -741,10 +808,10 @@ const getStyles = (colors: ThemeColors) =>
       alignItems: "center",
       marginRight: 10,
     },
-    restTitle: { fontSize: 14, fontWeight: "bold", color: "#333" }, // Fixo para contraste com o fundo claro
-    restDesc: { fontSize: 10, color: "#666", marginTop: 2 }, // Fixo
+    restTitle: { fontSize: 14, fontWeight: "bold", color: "#333" },
+    restDesc: { fontSize: 10, color: "#666", marginTop: 2 },
 
-    // Modais
+    // Modais (Inputs URL, etc)
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.6)",
@@ -776,11 +843,14 @@ const getStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
-    moneyInput: {
-      flex: 1,
-      paddingVertical: 12,
-      fontSize: 24,
-      fontWeight: "bold",
+    label: { fontSize: 14, color: colors.textSecondary, marginBottom: 6 },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      backgroundColor: colors.inputBg,
       color: colors.text,
     },
     modalButtons: { flexDirection: "row", gap: 10 },
@@ -796,213 +866,8 @@ const getStyles = (colors: ThemeColors) =>
       padding: 12,
       alignItems: "center",
       borderRadius: 8,
-      backgroundColor: colors.gold,
+      backgroundColor: colors.primary,
     },
     cancelText: { color: colors.textSecondary, fontWeight: "bold" },
     saveText: { color: "#fff", fontWeight: "bold" },
-
-    // Edit Modal Full
-    modalContainer: { flex: 1, backgroundColor: colors.background },
-    modalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "baseline",
-      padding: 20,
-      borderBottomWidth: 1,
-      marginTop: 20,
-      borderBottomColor: colors.border,
-    },
-    modalTitle: { fontSize: 18, fontWeight: "bold", color: colors.text },
-    closeText: { color: colors.primary, fontSize: 16, fontWeight: "600" },
-    modalContent: { padding: 20, paddingBottom: 50 },
-    section: {
-      // marginBottom: 24, // Espaço entre seções
-      // marginTop: 8,
-    },
-    sectionTitle: {
-      fontSize: 16,
-      fontWeight: "bold",
-      // marginTop: 20,
-      marginBottom: 12,
-      color: colors.textSecondary,
-      textTransform: "uppercase",
-    },
-
-    inputGroup: { marginBottom: 16 },
-    label: { fontSize: 14, color: colors.textSecondary, marginBottom: 6 },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 8,
-      padding: 12,
-      fontSize: 16,
-      backgroundColor: colors.inputBg,
-      color: colors.text,
-    },
-
-    // Chips
-    classSelector: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    classChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 20,
-      backgroundColor: colors.inputBg,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    classChipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    classChipDisabled: { backgroundColor: colors.inputBg, opacity: 0.5 },
-    classChipText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      fontWeight: "500",
-    },
-    classChipTextActive: { color: "#fff", fontWeight: "bold" },
-    classChipTextDisabled: {
-      textDecorationLine: "line-through",
-      color: colors.error,
-    },
-
-    chipContainer: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 4,
-    },
-    chip: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
-      borderRadius: 20,
-      backgroundColor: colors.inputBg,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    chipActive: { backgroundColor: colors.primary },
-    chipText: { color: colors.textSecondary, fontWeight: "500" },
-    chipTextActive: { color: "#fff" },
-    helperText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginBottom: 16,
-      fontStyle: "italic",
-    },
-
-    listSelector: { gap: 8 },
-    listItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 12,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-    },
-    listItemActive: {
-      borderColor: colors.primary,
-      backgroundColor: colors.primary + "10",
-    }, // Tint leve
-    listItemTitle: { fontWeight: "bold", fontSize: 14, color: colors.text },
-    listItemTitleActive: { color: colors.primary },
-    listItemDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-
-    // Attr Editor
-    attributesEditor: {
-      backgroundColor: colors.inputBg,
-      borderRadius: 12,
-      padding: 10,
-    },
-    attrEditRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    attrEditLabel: {
-      fontSize: 16,
-      fontWeight: "500",
-      width: 100,
-      color: colors.text,
-    },
-    stepper: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    stepBtn: { padding: 10 },
-    attrEditValue: {
-      fontSize: 18,
-      fontWeight: "bold",
-      width: 40,
-      textAlign: "center",
-      color: colors.text,
-    },
-    modPreview: {
-      width: 60,
-      textAlign: "right",
-      color: colors.textSecondary,
-      fontSize: 14,
-    },
-    row: { flexDirection: "row" },
-    // Quick Adjust (Novos Estilos)
-    quickAdjustContainer: {
-      marginBottom: 20,
-    },
-    quickAdjustRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      gap: 8,
-    },
-    adjustBtn: {
-      flex: 1,
-      backgroundColor: colors.inputBg,
-      paddingVertical: 10,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: "center",
-    },
-    adjustBtnText: {
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    progressionBtn: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      padding: 16,
-      borderRadius: 12,
-      marginBottom: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    btnCompleted: {
-      backgroundColor: colors.inputBg, // Ou uma cor que indique "já feito"
-      borderColor: colors.success,
-    },
-    btnTitle: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    btnSub: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 2,
-    },
-    btnLocked: {
-      backgroundColor: colors.inputBg,
-      opacity: 0.6,
-      borderColor: colors.border,
-    },
   });

@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -20,12 +20,13 @@ import { generateSafeId } from "@/utils/stringUtils";
 
 // Componentes Refatorados
 import { ActiveTurnInterface } from "@/components/session/ActiveTurnInterface"; // Sua interface de turno
+import { CombatNotification } from "@/components/session/CombatNotification";
 import { ConnectionForm } from "@/components/session/ConnectionForm"; // O novo componente
 import { ReactionOverlay } from "@/components/session/ReactionOverlay"; // Sua barra de reação
 import { SpectatorCard } from "@/components/session/SpectatorCard"; // O novo componente
 
 export default function SessionCombatScreen() {
-  const { combatants, activeTurnId } = useCampaign();
+  const { combatants, activeTurnId, logs, lastEvent } = useCampaign();
   const { character } = useCharacter();
   const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -37,12 +38,21 @@ export default function SessionCombatScreen() {
   const [initValue, setInitValue] = useState("");
   const [showInitModal, setShowInitModal] = useState(false);
   const [isRolling, setIsRolling] = useState(false);
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
 
   // Guardar temporariamente os dados de conexão para usar após rolar iniciativa
   const [tempConnection, setTempConnection] = useState<{
     ip: string;
     code: string;
   } | null>(null);
+
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    type: "damage" | "heal" | "info"; // <--- Adicionado
+    source: string;
+    skill: string;
+    value: number;
+  }>({ visible: false, type: "damage", source: "", skill: "", value: 0 });
 
   // ID Seguro para comparação
   const mySafeId = generateSafeId(character.name);
@@ -116,6 +126,34 @@ export default function SessionCombatScreen() {
     }
   };
 
+  useEffect(() => {
+    if (logs.length > 0) {
+      const lastLog = logs[logs.length - 1];
+      // Verifica a string exata que você colocou no Python
+      if (lastLog.includes("O Mestre encerrou o combate")) {
+        setShowVictoryModal(true);
+      }
+    }
+  }, [logs]);
+
+  useEffect(() => {
+    if (!lastEvent) return;
+
+    // Verifica se o alvo sou eu
+    if (lastEvent.target_id === mySafeId) {
+      // Se for Dano OU Cura
+      if (lastEvent.type === "damage" || lastEvent.type === "heal") {
+        setNotification({
+          visible: true,
+          type: lastEvent.type, // Passa "damage" ou "heal" direto do backend
+          source: lastEvent.attacker_name || "Origem desconhecida",
+          skill: lastEvent.skill_name || "Ação",
+          value: lastEvent.value || 0,
+        });
+      }
+    }
+  }, [lastEvent?.id, mySafeId]); // Monitora ID do evento
+
   // --- TELA DE CONEXÃO ---
   if (!isConnected) {
     return (
@@ -126,12 +164,7 @@ export default function SessionCombatScreen() {
           btnLabel="PRÓXIMO"
           extraButton={
             // Pequeno "hack" para passar o force reconnect, ou você pode melhorar o componente ConnectionForm
-            <TouchableOpacity
-              onPress={() =>
-                console.log("Force reconnect logic here if needed")
-              }
-              style={{ marginTop: 20 }}
-            >
+            <TouchableOpacity style={{ marginTop: 20 }}>
               <Text
                 style={{
                   color: colors.primary,
@@ -223,6 +256,14 @@ export default function SessionCombatScreen() {
   // --- TELA DE COMBATE ---
   return (
     <View style={styles.container}>
+      <CombatNotification
+        visible={notification.visible}
+        type={notification.type}
+        source={notification.source}
+        skill={notification.skill}
+        value={notification.value}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
+      />
       {/* Banner de Turno */}
       <View
         style={[
@@ -250,16 +291,16 @@ export default function SessionCombatScreen() {
 
       {/* Área Principal */}
       {isMyTurn ? (
-        <ActiveTurnInterface combatant={myCombatantData} />
+        <ActiveTurnInterface combatant={myCombatantData as any} />
       ) : (
         <FlatList
           data={combatants}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
           renderItem={({ item }) => (
             <SpectatorCard
               item={item}
-              activeTurnId={activeTurnId} // Componente espera activeTurnId, não booleano isCurrentTurn (ajuste conforme sua implementação do SpectatorCard)
+              activeTurnId={activeTurnId}
               colors={colors}
               isGm={false}
             />
@@ -272,8 +313,37 @@ export default function SessionCombatScreen() {
 
       {/* Overlay de Reação */}
       {!isMyTurn && myCombatantData && (
-        <ReactionOverlay combatant={myCombatantData} />
+        <ReactionOverlay combatant={myCombatantData as any} />
       )}
+
+      <Modal
+        visible={showVictoryModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowVictoryModal(false)}
+      >
+        <View style={styles.victoryOverlay}>
+          <View
+            style={[styles.victoryCard, { backgroundColor: colors.surface }]}
+          >
+            <MaterialCommunityIcons name="crown" size={60} color="#FFD700" />
+            <Text style={[styles.victoryTitle, { color: colors.text }]}>
+              COMBATE ENCERRADO
+            </Text>
+            <Text style={[styles.victorySub, { color: colors.textSecondary }]}>
+              O mestre finalizou o encontro.
+              {"\n"}Seus recursos de turno foram restaurados.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.victoryBtn}
+              onPress={() => setShowVictoryModal(false)}
+            >
+              <Text style={styles.victoryBtnText}>CONTINUAR</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -349,5 +419,48 @@ const getStyles = (colors: any) =>
       borderRadius: 8,
       alignItems: "center",
       justifyContent: "center",
+    },
+    victoryOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.8)", // Fundo mais escuro
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 20,
+    },
+    victoryCard: {
+      width: "90%",
+      borderRadius: 20,
+      padding: 30,
+      alignItems: "center",
+      elevation: 10,
+      borderWidth: 2,
+      borderColor: "#FFD700", // Borda dourada
+    },
+    victoryTitle: {
+      fontSize: 24,
+      fontWeight: "900",
+      textTransform: "uppercase",
+      marginTop: 16,
+      marginBottom: 8,
+      letterSpacing: 1,
+    },
+    victorySub: {
+      textAlign: "center",
+      fontSize: 16,
+      marginBottom: 24,
+      lineHeight: 22,
+    },
+    victoryBtn: {
+      backgroundColor: "#2e7d32", // Verde Vitória
+      paddingVertical: 14,
+      paddingHorizontal: 30,
+      borderRadius: 30,
+      width: "100%",
+      alignItems: "center",
+    },
+    victoryBtnText: {
+      color: "#fff",
+      fontWeight: "bold",
+      fontSize: 16,
     },
   });
