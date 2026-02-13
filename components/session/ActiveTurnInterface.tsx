@@ -3,13 +3,10 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   FlatList,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -20,10 +17,12 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWebSocket } from "@/context/WebSocketContext";
 import { Combatant, ResolveActionPayload, Skill, Spell } from "@/types/rpg";
 import { getActionKey } from "@/utils/rpgUtils";
+
 import { AttackModal } from "../modals/AttackModal";
 import { HealModal } from "../modals/HealModal";
 import { ActionTracker } from "../rpg/ActionTracker";
 import { CombatHud } from "../rpg/CombatHud";
+import { DeathSaveMonitor } from "../rpg/DeathSaveMonitor";
 import { SkillCard } from "../rpg/SkillCard";
 import { SpellCard } from "../rpg/SpellCard";
 import { StanceSelector } from "../rpg/StanceSelector";
@@ -58,24 +57,19 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     modifier: number;
   } | null>(null);
 
-  const isDying = combatant.hp.current <= 0;
-  const [manualDeathInput, setManualDeathInput] = useState("");
-  const successes = combatant.deathSaves?.successes || 0;
-  const failures = combatant.deathSaves?.failures || 0;
-
-  const updateDeathSaves = (type: "success" | "failure", value: number) => {
-    const newSaves = {
-      successes: type === "success" ? value : successes,
-      failures: type === "failure" ? value : failures,
-    };
-
-    updateCombatant(combatant.id, "deathSaves", newSaves);
-
-    // Opcional: Enviar socket se quiser sincronizar em tempo real as bolinhas
-    // sendMessage("UPDATE_COMBATANT", { ... });
+  // Garante que actions existe com valores padrão
+  const turnActions = combatant.turnActions || {
+    standard: true,
+    bonus: true,
+    reaction: true,
   };
 
-  const handleDeathSave = (manualRoll?: number) => {
+  const handleEndTurn = () => {
+    sendMessage("END_TURN", { character_id: combatant.id });
+  };
+
+  // --- LÓGICA DE DEATH SAVES ---
+  const handleDeathSaveRoll = (manualRoll?: number) => {
     let d20: number;
 
     if (manualRoll !== undefined) {
@@ -113,6 +107,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       resultText = "FALHA.";
     }
 
+    // Verifica Estabilização ou Morte
     if (newSuccesses >= 3 && hpUpdate === 0) {
       newSuccesses = 0;
       newFailures = 0;
@@ -123,6 +118,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       resultText += "\n\nSEU PERSONAGEM MORREU.";
     }
 
+    // Atualiza HP e Status
     if (hpUpdate > 0) {
       updateCombatant(combatant.id, "hp", {
         ...combatant.hp,
@@ -139,6 +135,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
     }
 
+    // Gasta Ação Padrão caso seja necessário
     if (turnActions.standard) {
       updateCombatant(combatant.id, "turnActions", {
         ...turnActions,
@@ -146,12 +143,11 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       });
     }
 
-    const payload = {
+    // Dispara via Socket
+    sendMessage("ROLL_DEATH_SAVE", {
       combatantId: combatant.id,
       rollValue: d20,
-    };
-
-    sendMessage("ROLL_DEATH_SAVE", payload);
+    });
 
     showAlert(
       hpUpdate > 0 ? "Salvo!" : died ? "Morte" : "Teste de Morte",
@@ -159,27 +155,37 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     );
 
     handleEndTurn();
-    setManualDeathInput("");
   };
 
-  // Garante que actions existe com valores padrão
-  const turnActions = combatant.turnActions || {
-    standard: true,
-    bonus: true,
-    reaction: true,
-  };
+  // --- RENDERIZAÇÃO CONDICIONAL DE MORTE ---
+  if (combatant.hp.current <= 0) {
+    return (
+      <DeathSaveMonitor
+        successes={combatant.deathSaves?.successes || 0}
+        failures={combatant.deathSaves?.failures || 0}
+        onUpdateSave={(type, val) => {
+          // O GM ou o Jogador clicou direto na "bolinha"
+          updateCombatant(combatant.id, "deathSaves", {
+            ...(combatant.deathSaves || { successes: 0, failures: 0 }),
+            [type]: val,
+          });
+        }}
+        onRoll={handleDeathSaveRoll}
+        onEndTurn={handleEndTurn}
+      />
+    );
+  }
 
-  // --- LÓGICA DE DADOS (Visual) ---
+  // --- LÓGICA DE DADOS (Combate Ativo) ---
   const stances = combatant.stances || [];
   const currentStanceIdx = stances.findIndex(
     (s: any) => s.id === combatant.activeStanceId,
   );
   const isNeutral = currentStanceIdx === -1;
   const activeStance = isNeutral ? null : stances[currentStanceIdx];
-
   const stanceBonus = activeStance?.acBonus || 0;
 
-  // --- HANDLERS EXISTENTES ---
+  // --- HANDLERS DE AÇÕES (Magias, Habilidades, etc) ---
   const handleCastSpell = (spell: Spell) => {
     if (combatant.focus.current < spell.cost) {
       showAlert("Sem Foco", "Foco insuficiente.");
@@ -230,6 +236,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         "focus",
         Math.max(0, combatant.focus.current - spell.cost),
       );
+
       if (actionKey) {
         updateCombatant(combatant.id, "turnActions", {
           ...turnActions,
@@ -262,12 +269,10 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       if (target.hp.current <= 0) {
         updateCombatant(targetId, "deathSaves", { successes: 0, failures: 0 });
       }
-
       const newHp = Math.min(target.hp.max, target.hp.current + healAmount);
       updateCombatant(targetId, "hp", { ...target.hp, current: newHp });
     }
 
-    // Consome Foco
     updateCombatant(
       combatant.id,
       "focus",
@@ -302,6 +307,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       "focus",
       Math.max(0, combatant.focus.current - skill.cost),
     );
+
     if (actionKey) {
       const newActions = { ...turnActions, [actionKey]: false };
       updateCombatant(combatant.id, "turnActions", newActions);
@@ -326,11 +332,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       (s) => s.id === combatant.activeStanceId,
     );
     const currentBonusOnServer = currentActiveStance?.acBonus || 0;
-    console.log("currentBonusOnServer: ", currentBonusOnServer);
-
     const safeBaseAC = (combatant.armorClass || 10) - currentBonusOnServer;
-
-    console.log("safeBaseAC: ", safeBaseAC);
 
     let nextStanceId = null;
     let nextAC = safeBaseAC;
@@ -346,7 +348,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
 
       nextStanceId = newStance.id;
       nextAC = safeBaseAC + (newStance.acBonus || 0);
-      console.log("NOVA AC: ", nextAC);
 
       const newActions = { ...turnActions, bonus: false };
       updateCombatant(combatant.id, "turnActions", newActions);
@@ -360,10 +361,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
       stanceId: nextStanceId,
       newAC: nextAC,
     });
-  };
-
-  const handleEndTurn = () => {
-    sendMessage("END_TURN", { character_id: combatant.id });
   };
 
   const handleCloseModal = () => {
@@ -432,138 +429,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
     );
   };
 
-  // --- RENDERIZAÇÃO CONDICIONAL DE MORTE ---
-  if (isDying) {
-    return (
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.deathContainer}>
-            <MaterialCommunityIcons
-              name="skull-outline"
-              size={60}
-              color={colors.error}
-            />
-            <Text style={styles.deathTitle}>VOCÊ ESTÁ CAÍDO!</Text>
-
-            {/* --- MONITOR DE MORTE --- */}
-            <View style={styles.deathMonitorCard}>
-              <View style={styles.deathSaveRow}>
-                {/* Sucessos */}
-                <View style={styles.deathSaveGroup}>
-                  <Text
-                    style={[styles.deathSaveLabel, { color: colors.success }]}
-                  >
-                    Sucessos
-                  </Text>
-                  <View style={styles.dotsContainer}>
-                    {[1, 2, 3].map((i) => (
-                      <TouchableOpacity
-                        key={`succ-${i}`}
-                        style={[
-                          styles.deathSaveDot,
-                          { borderColor: colors.success },
-                          successes >= i && { backgroundColor: colors.success },
-                        ]}
-                        onPress={() =>
-                          updateDeathSaves(
-                            "success",
-                            successes === i ? i - 1 : i,
-                          )
-                        }
-                      />
-                    ))}
-                  </View>
-                </View>
-
-                {/* Falhas */}
-                <View style={styles.deathSaveGroup}>
-                  <Text
-                    style={[styles.deathSaveLabel, { color: colors.error }]}
-                  >
-                    Falhas
-                  </Text>
-                  <View style={styles.dotsContainer}>
-                    {[1, 2, 3].map((i) => (
-                      <TouchableOpacity
-                        key={`fail-${i}`}
-                        style={[
-                          styles.deathSaveDot,
-                          { borderColor: colors.error },
-                          failures >= i && { backgroundColor: colors.error },
-                        ]}
-                        onPress={() =>
-                          updateDeathSaves(
-                            "failure",
-                            failures === i ? i - 1 : i,
-                          )
-                        }
-                      />
-                    ))}
-                  </View>
-                </View>
-              </View>
-              {successes >= 3 && (
-                <Text style={styles.stabilizedText}>ESTABILIZADO</Text>
-              )}
-              {failures >= 3 && <Text style={styles.deadText}>MORTO</Text>}
-            </View>
-
-            {/* BOTÕES DE ROLAGEM (Só mostra se não estabilizou nem morreu ainda) */}
-            {successes < 3 && failures < 3 && (
-              <>
-                <TouchableOpacity
-                  style={styles.deathBtn}
-                  onPress={() => handleDeathSave()}
-                >
-                  <MaterialCommunityIcons
-                    name="dice-d20"
-                    size={24}
-                    color="#fff"
-                  />
-                  <Text style={styles.deathBtnText}>ROLAGEM</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.dividerText}>— OU —</Text>
-
-                <View style={styles.manualRow}>
-                  <TextInput
-                    style={styles.manualInput}
-                    placeholder="Valor"
-                    placeholderTextColor={colors.error + "80"}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    value={manualDeathInput}
-                    onChangeText={setManualDeathInput}
-                  />
-                  <TouchableOpacity
-                    style={styles.manualBtn}
-                    onPress={() => handleDeathSave(Number(manualDeathInput))}
-                  >
-                    <Text style={styles.manualBtnText}>CONFIRMAR</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            <TouchableOpacity
-              style={styles.endTurnBtnBig}
-              onPress={handleEndTurn}
-            >
-              <Text style={styles.endTurnText}>PULAR / ENCERRAR TURNO</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
   // --- RENDERIZAÇÃO NORMAL (Combate Ativo) ---
   return (
     <ScrollView style={{ flex: 1 }}>
@@ -578,6 +443,7 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
           </Text>
         </TouchableOpacity>
       </View>
+
       {/* --- HUD DE COMBATE --- */}
       <CombatHud
         health={combatant.hp}
@@ -585,16 +451,17 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         armorClass={combatant.armorClass}
         stanceMod={stanceBonus}
       />
+
       <View style={{ paddingHorizontal: 16 }}>
         {/* --- SELETOR DE POSTURA --- */}
-        {combatant.stances && combatant.stances.length > 0 ? (
+        {combatant.stances && combatant.stances.length > 0 && (
           <StanceSelector
             stances={combatant.stances}
             activeStanceId={combatant.activeStanceId}
             turnActions={turnActions}
             onStanceChange={handleStanceChange}
           />
-        ) : null}
+        )}
 
         {/* --- RASTREADOR DE AÇÕES --- */}
         <View style={styles.combatSection}>
@@ -654,28 +521,26 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
         )}
 
         {/* --- HABILIDADES FÍSICAS --- */}
-        {/* LÓGICA: Só exibe a seção se houver habilidades na lista */}
-        {combatant.skills && combatant.skills.length > 0 ? (
+        {combatant.skills && combatant.skills.length > 0 && (
           <View style={styles.combatSection}>
             <Text style={styles.sectionHeader}>Habilidades</Text>
-            {combatant.skills.map((skill: Skill) => {
-              return (
-                <SkillCard
-                  key={skill.id}
-                  skill={skill}
-                  character={combatant}
-                  onPress={() => handleUseSkill(skill)}
-                  showAlert={showAlert}
-                />
-              );
-            })}
+            {combatant.skills.map((skill: Skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                character={combatant}
+                onPress={() => handleUseSkill(skill)}
+                showAlert={showAlert}
+              />
+            ))}
           </View>
-        ) : null}
+        )}
 
         <TouchableOpacity style={styles.endTurnBtnBig} onPress={handleEndTurn}>
           <Text style={styles.endTurnText}>ENCERRAR MEU TURNO</Text>
         </TouchableOpacity>
       </View>
+
       <View style={{ height: 40 }} />
 
       <AttackModal
@@ -718,11 +583,15 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             { backgroundColor: colors.background },
           ]}
         >
-          {/* Header do Modal */}
           <SafeAreaView
             style={[styles.modalHeader, { borderColor: colors.border }]}
           >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
+            <Text
+              style={[
+                styles.modalTitle,
+                { color: colors.text, marginBottom: 0 },
+              ]}
+            >
               Situação do Combate
             </Text>
             <TouchableOpacity onPress={() => setBattlefieldVisible(false)}>
@@ -732,7 +601,6 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             </TouchableOpacity>
           </SafeAreaView>
 
-          {/* Lista Reutilizada */}
           <FlatList
             data={combatants}
             keyExtractor={(item) => item.id}
@@ -740,9 +608,9 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
             renderItem={({ item }) => (
               <SpectatorCard
                 item={item}
-                activeTurnId={activeTurnId} // Passa o ID do turno ativo
+                activeTurnId={activeTurnId}
                 colors={colors}
-                isGm={isGm} // Passa se é GM ou não
+                isGm={isGm}
               />
             )}
           />
@@ -752,177 +620,12 @@ export const ActiveTurnInterface = ({ combatant, isGm = false }: Props) => {
   );
 };
 
+// ESTILOS LIMPOS (Sem rastros do antigo menu de Death Saves)
 const getStyles = (colors: any, isDark: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
 
-    deathContainer: {
-      alignItems: "center",
-      backgroundColor: isDark ? colors.background : "#ffebee",
-      padding: 24,
-    },
-    deathTitle: {
-      fontSize: 32,
-      fontWeight: "900",
-      color: colors.error,
-      marginTop: 16,
-      textAlign: "center",
-      letterSpacing: 2,
-    },
-    deathSubtitle: {
-      fontSize: 16,
-      color: "#ff8a80",
-      textAlign: "center",
-      marginVertical: 12,
-      marginBottom: 40,
-    },
-    deathBtn: {
-      backgroundColor: colors.error,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 32,
-      paddingVertical: 16,
-      borderRadius: 50,
-      gap: 12,
-      elevation: 10,
-      shadowColor: colors.error,
-      shadowOpacity: 0.5,
-      shadowRadius: 10,
-    },
-    deathBtnText: {
-      color: "#fff",
-      fontSize: 18,
-      fontWeight: "bold",
-    },
-
-    // HUD ATIVO
-    combatHud: {
-      backgroundColor: colors.surface,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      marginBottom: 16,
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-      gap: 12,
-    },
-    topRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    healthContainer: { flex: 1, marginRight: 16 },
-    verticalSeparator: {
-      width: 1,
-      height: 40,
-      backgroundColor: colors.border,
-      marginRight: 16,
-    },
-    acContainer: { alignItems: "center", minWidth: 60 },
-    bottomRow: { width: "100%" },
-    resourceHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-end",
-      marginBottom: 6,
-    },
-    labelGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
-    hudLabel: { fontSize: 11, fontWeight: "bold", color: colors.textSecondary },
-    resourceValue: { fontSize: 12, color: colors.textSecondary },
-    resourceCurrent: { fontSize: 16, fontWeight: "900" },
-    resourceMax: { fontSize: 12, fontWeight: "600", opacity: 0.7 },
-    barBackground: {
-      height: 10,
-      backgroundColor: colors.inputBg,
-      borderRadius: 5,
-      overflow: "hidden",
-    },
-    barFill: { height: "100%", borderRadius: 5 },
-    acValueContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      marginTop: 2,
-    },
-    acTotal: { fontSize: 28, fontWeight: "bold", color: colors.text },
-    modBadge: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      justifyContent: "center",
-      alignItems: "center",
-      borderWidth: 1,
-    },
-
-    // STANCE & SECTIONS
-    stanceSelectorContainer: { marginBottom: 16 },
-    sectionLabel: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontWeight: "bold",
-      textTransform: "uppercase",
-      marginBottom: 8,
-    },
-    stanceToggleGroup: {
-      flexDirection: "row",
-      backgroundColor: colors.inputBg,
-      borderRadius: 8,
-      padding: 2,
-      marginBottom: 8,
-    },
-    stanceBtn: {
-      flex: 1,
-      paddingVertical: 8,
-      alignItems: "center",
-      borderRadius: 6,
-    },
-    stanceBtnText: { fontWeight: "600", color: colors.textSecondary },
-    stanceBtnNeutralActive: { backgroundColor: colors.surface, elevation: 2 },
-    stanceBtnP1Active: { backgroundColor: "#1976d2", elevation: 2 },
-    stanceBtnP2Active: { backgroundColor: "#f57c00", elevation: 2 },
-    stanceBtnTextActive: { color: colors.text },
-    stanceCard: {
-      borderRadius: 12,
-      padding: 16,
-      elevation: 2,
-      minHeight: 120,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    stanceNeutralBg: {
-      borderLeftWidth: 5,
-      borderLeftColor: colors.textSecondary,
-    },
-    stanceOneBg: { borderLeftWidth: 5, borderLeftColor: "#1976d2" },
-    stanceTwoBg: { borderLeftWidth: 5, borderLeftColor: "#f57c00" },
-    activeStanceName: {
-      fontSize: 20,
-      fontWeight: "bold",
-      textAlign: "center",
-      color: colors.text,
-      marginBottom: 8,
-    },
-    divider: { height: 1, backgroundColor: colors.border, marginBottom: 12 },
-    neutralText: {
-      textAlign: "center",
-      color: colors.textSecondary,
-      fontStyle: "italic",
-      marginTop: 10,
-    },
-    stanceDetails: { gap: 8 },
-    infoRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      alignItems: "flex-start",
-    },
-    infoLabel: { fontWeight: "bold", marginRight: 6, fontSize: 14 },
-    infoText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      flex: 1,
-      lineHeight: 20,
-    },
-
+    // SECTIONS & HUD
     combatSection: { marginBottom: 20 },
     sectionHeader: {
       fontSize: 14,
@@ -930,32 +633,6 @@ const getStyles = (colors: any, isDark: any) =>
       color: colors.textSecondary,
       textTransform: "uppercase",
       marginBottom: 10,
-    },
-    actionsRow: { flexDirection: "row", gap: 10 },
-    actionBtn: { flex: 1, padding: 12, borderRadius: 8, alignItems: "center" },
-    actionBtnText: {
-      color: "#fff",
-      fontWeight: "bold",
-      fontSize: 11,
-      textTransform: "uppercase",
-    },
-    skillRow: {
-      flexDirection: "row",
-      backgroundColor: colors.surface,
-      padding: 12,
-      borderRadius: 8,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    skillName: { fontWeight: "bold", color: colors.text, fontSize: 14 },
-    skillType: { fontSize: 12, color: colors.primary, marginTop: 2 },
-    detailText: { color: colors.textSecondary, fontSize: 12 },
-    skillCost: {
-      justifyContent: "center",
-      paddingLeft: 10,
-      borderLeftWidth: 1,
-      borderColor: colors.border,
     },
     endTurnBtnBig: {
       marginVertical: 16,
@@ -974,134 +651,7 @@ const getStyles = (colors: any, isDark: any) =>
       letterSpacing: 1,
     },
 
-    // SPECTATOR & COMMON
-    spectatorCard: {
-      flexDirection: "row",
-      backgroundColor: colors.surface,
-      marginBottom: 10,
-      borderRadius: 8,
-      padding: 10,
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    initBadge: {
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: colors.inputBg,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    initText: { fontWeight: "bold", color: colors.text },
-    spectatorName: { fontWeight: "bold", fontSize: 16, color: colors.text },
-    spectatorStatus: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      marginTop: 2,
-      fontStyle: "italic",
-    },
-    miniBarBg: {
-      height: 6,
-      backgroundColor: colors.inputBg,
-      borderRadius: 3,
-      marginTop: 6,
-      overflow: "hidden",
-    },
-    miniBarFill: { height: "100%", borderRadius: 3 },
-    empty: { textAlign: "center", marginTop: 50, color: colors.textSecondary },
-    turnBanner: {
-      padding: 12,
-      paddingHorizontal: 16,
-      alignItems: "center",
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    turnBannerText: { fontWeight: "bold", fontSize: 16, color: colors.text },
-    disconnectBtn: { padding: 4 },
-
-    // CONFIG & MODALS
-    configCard: {
-      backgroundColor: colors.surface,
-      padding: 24,
-      borderRadius: 16,
-      elevation: 4,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    configTitle: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: colors.text,
-      marginVertical: 8,
-    },
-    input: {
-      backgroundColor: colors.inputBg,
-      padding: 14,
-      borderRadius: 8,
-      marginBottom: 16,
-      color: colors.text,
-      borderWidth: 1,
-      borderColor: colors.border,
-      fontSize: 16,
-    },
-    connectBtn: {
-      backgroundColor: colors.primary,
-      padding: 16,
-      borderRadius: 8,
-      alignItems: "center",
-      marginTop: 8,
-      flexDirection: "row",
-      gap: 8,
-      justifyContent: "center",
-    },
-    connectBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.6)",
-      justifyContent: "center",
-      padding: 20,
-    },
-    modalCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
-      elevation: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: colors.text,
-      textAlign: "center",
-      marginBottom: 8,
-    },
-    modalSubtitle: {
-      color: colors.textSecondary,
-      textAlign: "center",
-      marginBottom: 20,
-    },
-    rollBtn: {
-      backgroundColor: colors.primary,
-      padding: 16,
-      borderRadius: 8,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      marginBottom: 10,
-    },
-    rollBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-    modalBtn: {
-      padding: 14,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    // BUTTONS
     mainAttackBtn: {
       backgroundColor: "#d32f2f", // Vermelho sangue
       flexDirection: "row",
@@ -1138,6 +688,8 @@ const getStyles = (colors: any, isDark: any) =>
       textTransform: "uppercase",
       letterSpacing: 1,
     },
+
+    // MODAL
     modalContainer: { flex: 1 },
     modalHeader: {
       flexDirection: "row",
@@ -1147,90 +699,10 @@ const getStyles = (colors: any, isDark: any) =>
       borderBottomWidth: 1,
       backgroundColor: colors.surface,
     },
-    dividerText: {
-      color: "#ff8a80",
-      fontWeight: "bold",
-      marginVertical: 16,
-      opacity: 0.7,
-    },
-    manualRow: {
-      flexDirection: "row",
-      gap: 10,
-      width: "100%",
-      marginBottom: 20,
-      justifyContent: "center",
-    },
-    manualInput: {
-      backgroundColor: "rgba(255, 0, 0, 0.1)",
-      borderWidth: 1,
-      borderColor: colors.error,
-      borderRadius: 8,
-      color: "#fff",
-      width: 80,
-      textAlign: "center",
+    modalTitle: {
       fontSize: 18,
       fontWeight: "bold",
-      padding: 12,
-    },
-    manualBtn: {
-      backgroundColor: "transparent",
-      borderWidth: 1,
-      borderColor: colors.error,
-      borderRadius: 8,
-      justifyContent: "center",
-      paddingHorizontal: 16,
-    },
-    manualBtnText: {
-      color: colors.error,
-      fontWeight: "bold",
-      fontSize: 12,
-    },
-
-    // Monitor Card
-    deathMonitorCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      width: "100%",
-      marginBottom: 24,
-      borderWidth: 1,
-      borderColor: "#5c2b2b",
-    },
-    deathSaveRow: {
-      flexDirection: "row",
-      justifyContent: "space-around",
-      marginBottom: 8,
-    },
-    deathSaveGroup: { alignItems: "center" },
-    deathSaveLabel: {
-      fontSize: 14,
-      fontWeight: "bold",
-      marginBottom: 8,
-      textTransform: "uppercase",
-      letterSpacing: 1,
-    },
-    dotsContainer: { flexDirection: "row", gap: 12 },
-    deathSaveDot: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 2,
-      backgroundColor: "transparent",
-    },
-    stabilizedText: {
-      color: colors.success,
+      color: colors.text,
       textAlign: "center",
-      fontWeight: "bold",
-      fontSize: 18,
-      marginTop: 10,
-      letterSpacing: 2,
-    },
-    deadText: {
-      color: "#5c2b2b", // Vermelho morto escuro
-      textAlign: "center",
-      fontWeight: "bold",
-      fontSize: 24,
-      marginTop: 10,
-      letterSpacing: 4,
     },
   });

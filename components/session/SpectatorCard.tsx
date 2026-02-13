@@ -1,6 +1,7 @@
 import { Combatant } from "@/types/rpg";
 import React, { useMemo } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { AvatarPortrait } from "../ui/AvatarPortrait";
 
 interface SpectatorCardProps {
   item: Combatant;
@@ -44,29 +45,13 @@ export const SpectatorCard = ({
             isActive && { borderColor: colors.primary, borderWidth: 2 }, // Borda colorida se for a vez
           ]}
         >
-          {item.image ? (
-            <Image
-              source={{ uri: item.image }}
-              style={styles.avatar}
-              resizeMode="cover"
-            />
-          ) : (
-            <View
-              style={[
-                styles.avatarFallback,
-                { backgroundColor: isActive ? colors.primary : colors.inputBg },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.avatarInitial,
-                  { color: isActive ? "#fff" : colors.textSecondary },
-                ]}
-              >
-                {item.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <AvatarPortrait
+            imageUrl={item.image}
+            size={48}
+            name={item.name}
+            fallbackBgColor={isActive ? colors.primary : colors.inputBg}
+            fallbackTextColor={isActive ? "#fff" : colors.textSecondary}
+          />
         </View>
 
         {/* BADGE DE INICIATIVA (Sobreposta) */}
