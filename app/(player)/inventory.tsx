@@ -12,12 +12,14 @@ import {
 
 // Imports de Contexto e Tipos
 import { EquipSlot } from "@/components/rpg/EquipSlot";
+import { AvatarPortrait } from "@/components/ui/AvatarPortrait";
 import { StatBar } from "@/components/ui/StatBar";
 import { ThemedModal } from "@/components/ui/ThemedModal";
 import { useAlert } from "@/context/AlertContext";
 import { useCharacter } from "@/context/CharacterContext";
-import { useTheme } from "@/context/ThemeContext"; // <--- Hook do Tema
+import { useTheme } from "@/context/ThemeContext";
 import { EquipmentItem, Item, ItemType } from "@/types/rpg";
+import * as ImagePicker from "expo-image-picker";
 
 // Adicionado 'shield' ao tipo
 type EquipSlotType = "meleeWeapon" | "rangedWeapon" | "armor" | "shield";
@@ -48,6 +50,7 @@ export default function InventoryScreen() {
   const [editStats, setEditStats] = useState("");
   const [editDefense, setEditDefense] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editImage, setEditImage] = useState("");
 
   // Estados de Item da Mochila
   const [addItemModalVisible, setAddItemModalVisible] = useState(false);
@@ -96,6 +99,7 @@ export default function InventoryScreen() {
     setEditWeight(item.weight ? String(item.weight) : "0");
     setEditDesc(item.description || "");
     setEquipModalVisible(true);
+    setEditImage(item.image || "");
   };
 
   const saveEquipment = () => {
@@ -106,6 +110,7 @@ export default function InventoryScreen() {
         defense: parseInt(editDefense) || 0,
         description: editDesc,
         weight: parseFloat(editWeight) || 0,
+        image: editImage.trim() || undefined,
       };
       updateEquipment(selectedSlot, newItem);
       setEquipModalVisible(false);
@@ -191,6 +196,32 @@ export default function InventoryScreen() {
         }; // Roxo Transparente
       default:
         return { label: "Item", bg: colors.border, text: colors.text };
+    }
+  };
+
+  const pickImage = async () => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permissionResult.granted === false) {
+      showAlert(
+        "Permissão necessária",
+        "É necessário permitir o acesso à galeria para mudar a imagem do item.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true, // Permite recortar a espada/escudo
+      aspect: [1, 1], // Quadrado (para caber bonitinho no slot)
+      quality: 0.5, // Comprime para não pesar no AsyncStorage
+      base64: true, // Fundamental!
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      const imageUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setEditImage(imageUri);
     }
   };
 
@@ -377,6 +408,59 @@ export default function InventoryScreen() {
               placeholder="0.0"
               placeholderTextColor={colors.textSecondary}
             />
+          </View>
+
+          {/* NOVO BLOCO DE IMAGEM */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Imagem do Equipamento</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 16 }}
+            >
+              {/* Preview da Imagem ou Placeholder */}
+              <View style={styles.itemImagePreview}>
+                {editImage ? (
+                  <AvatarPortrait imageUrl={editImage} size={60} /> // Usando o AvatarPortrait para exibir
+                ) : (
+                  <View
+                    style={[
+                      styles.iconPlaceholder,
+                      { backgroundColor: colors.inputBg },
+                    ]}
+                  >
+                    <Ionicons
+                      name="image-outline"
+                      size={24}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                )}
+              </View>
+
+              {/* Botões de Ação */}
+              <View style={{ flex: 1, gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.actionBtnPrimary}
+                  onPress={pickImage}
+                >
+                  <Ionicons name="camera" size={18} color="#fff" />
+                  <Text style={styles.actionBtnText}>Escolher Imagem</Text>
+                </TouchableOpacity>
+
+                {editImage ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionBtnDestructive,
+                      { padding: 8, marginBottom: 0 },
+                    ]}
+                    onPress={() => setEditImage("")}
+                  >
+                    <Text style={[styles.actionBtnText, { fontSize: 12 }]}>
+                      Remover Imagem
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
           </View>
 
           <View style={styles.modalButtons}>
@@ -691,4 +775,20 @@ const getStyles = (colors: any) =>
       gap: 2,
     },
     weightText: { fontSize: 10, color: colors.textSecondary },
+    itemImagePreview: {
+      width: 60,
+      height: 60,
+      borderRadius: 12,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    iconPlaceholder: {
+      width: "100%",
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });

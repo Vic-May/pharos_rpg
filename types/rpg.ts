@@ -89,6 +89,7 @@ export interface Item {
 
 export interface EquipmentItem {
   name: string;
+  image?: string;
 
   // --- NOVOS CAMPOS PARA AUTOMAÇÃO ---
   damage?: string; // Ex: "1d8", "2d6". Opcional (Escudo não tem)
@@ -120,7 +121,6 @@ export interface Spell {
   isHealing?: boolean; // Identifica se é magia de cura
   healFormula?: string; // Ex: "1d8", "2d4+2"
   requiredRace?: string; // Nova propriedade para restrição de raça
-
 }
 
 interface Ancestry {
@@ -213,10 +213,10 @@ export interface Character {
 
 export interface CombatWeaponData {
   name: string;
-  damage: string;      // "1d8", "2d6"
+  damage: string; // "1d8", "2d6"
   attribute: AttributeName; // "Força" ou "Destreza"
   attackBonus: number;
-  range: string;       // "Corpo a Corpo" ou "30m"
+  range: string; // "Corpo a Corpo" ou "30m"
 }
 
 export interface Combatant {
@@ -257,10 +257,10 @@ export interface Combatant {
   // Equipamento/Ações: Aqui aceitamos string (NPC) ou Detalhado (Player)
   // Ou simplificamos tudo para string para o combate ficar leve
   weapons: {
-    melee?: CombatWeaponData;  // Arma Primária
+    melee?: CombatWeaponData; // Arma Primária
     ranged?: CombatWeaponData; // Arma Secundária/Distância
   };
-  
+
   equipmentSummary?: string;
   actionsDescription?: string;
 }
